@@ -957,12 +957,8 @@ mongoc_client_session_start_transaction (mongoc_client_session_t *session,
 
    ret = true;
    sd = mongoc_client_select_server (
-      session->client, true /* primary */, NULL, NULL);
+      session->client, true /* primary */, NULL, error);
    if (!sd) {
-      bson_set_error (error,
-                      MONGOC_ERROR_SERVER_SELECTION,
-                      MONGOC_ERROR_SERVER_SELECTION_FAILURE,
-                      "No suitable servers found");
       ret = false;
       GOTO (done);
    }
