@@ -289,7 +289,6 @@ all_functions = OD([
         export IPV4_ONLY=${IPV4_ONLY}
         export VALGRIND=${VALGRIND}
         export MONGOC_TEST_URI=${URI}
-        export MONGOC_TEST_URI_USE_MULTIPLE_MONGOSES='mongodb://localhost:27017,localhost:27018/'
         export DNS=${DNS}
         sh .evergreen/run-tests.sh
         '''),
