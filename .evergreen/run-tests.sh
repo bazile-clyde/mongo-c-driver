@@ -84,6 +84,7 @@ case "$OS" in
          . $DIR/valgrind.sh
          run_valgrind ./src/libmongoc/test-libmongoc --no-fork $TEST_ARGS
       else
+         MONGOC_TEST_URI="mongodb://localhost:27017,localhost:27018/"
          ./src/libmongoc/test-libmongoc --no-fork $TEST_ARGS
       fi
 
