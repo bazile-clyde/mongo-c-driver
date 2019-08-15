@@ -9,12 +9,13 @@ SSL=${SSL:-nossl}
 URI=${URI:-}
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 DNS=${DNS:-nodns}
+MULTIPLE_MONGOSES="mongodb://localhost:27017,localhost:27018/"
 
 # AddressSanitizer configuration
 export ASAN_OPTIONS="detect_leaks=1 abort_on_error=1 symbolize=1"
 export ASAN_SYMBOLIZER_PATH="/usr/lib/llvm-3.4/bin/llvm-symbolizer"
 
-echo "COMPRESSORS='${COMPRESSORS}' CC='${CC}' AUTH=${AUTH} SSL=${SSL} URI=${URI} IPV4_ONLY=${IPV4_ONLY} VALGRIND=${VALGRIND} MONGOC_TEST_URI=${MONGOC_TEST_URI}"
+echo "COMPRESSORS='${COMPRESSORS}' CC='${CC}' AUTH=${AUTH} SSL=${SSL} URI=${URI} IPV4_ONLY=${IPV4_ONLY} VALGRIND=${VALGRIND} MONGOC_TEST_URI=${MONGOC_TEST_URI} MULTIPLE_MONGOSES='${MULTIPLE_MONGOSES}'"
 
 [ -z "$MARCH" ] && MARCH=$(uname -m | tr '[:upper:]' '[:lower:]')
 TEST_ARGS="-d -F test-results.json"
@@ -84,7 +85,6 @@ case "$OS" in
          . $DIR/valgrind.sh
          run_valgrind ./src/libmongoc/test-libmongoc --no-fork $TEST_ARGS
       else
-         MONGOC_TEST_URI="mongodb://localhost:27017,localhost:27018/"
          ./src/libmongoc/test-libmongoc --no-fork $TEST_ARGS
       fi
 
