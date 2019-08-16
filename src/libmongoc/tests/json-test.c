@@ -1313,18 +1313,11 @@ run_json_general_test (const json_test_config_t *config)
 
       bson_free (selected_test);
 
-      uri = test_framework_get_uri ();
-
-      /* If we are using multiple mongos, hardcode them in, for now, but keep
-       * the other URI components (CDRIVER-3285) */
       if (bson_iter_init_find (&uri_iter, &test, "useMultipleMongoses") &&
           bson_iter_as_bool (&uri_iter)) {
-         ASSERT_OR_PRINT (
-            mongoc_uri_upsert_host_and_port (uri, "localhost:27017", &error),
-            error);
-         ASSERT_OR_PRINT (
-            mongoc_uri_upsert_host_and_port (uri, "localhost:27018", &error),
-            error);
+         uri = mongoc_uri_new (test_framework_getenv ("USE_MULTIPLE_MONGOSES"));
+      } else {
+         uri = test_framework_get_uri ();
       }
 
       if (bson_iter_init_find (&client_opts_iter, &test, "clientOptions")) {
