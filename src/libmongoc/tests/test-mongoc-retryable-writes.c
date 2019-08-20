@@ -131,7 +131,7 @@ test_command_with_opts (void *ctx)
    bson_t reply_result;
    bson_error_t error;
 
-   uri = test_framework_get_uri ();
+   uri = test_framework_get_uri (NULL);
    mongoc_uri_set_option_as_bool (uri, "retryWrites", true);
 
    client = mongoc_client_new_from_uri (uri);

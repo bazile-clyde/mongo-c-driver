@@ -69,7 +69,7 @@ _client_new_disable_ss (bool use_compression)
    mongoc_server_description_t *sd;
    bson_error_t err;
 
-   uri = test_framework_get_uri ();
+   uri = test_framework_get_uri (NULL);
    mongoc_uri_set_option_as_int32 (uri, MONGOC_URI_HEARTBEATFREQUENCYMS, 99999);
    mongoc_uri_set_option_as_int32 (
       uri, MONGOC_URI_SOCKETCHECKINTERVALMS, 99999);
@@ -295,7 +295,7 @@ test_counters_clients (void)
    mongoc_client_pool_t *client_pool;
    mongoc_client_t *client;
    mongoc_uri_t *uri;
-   uri = test_framework_get_uri ();
+   uri = test_framework_get_uri (NULL);
 
    mongoc_uri_set_option_as_int32 (uri, MONGOC_URI_HEARTBEATFREQUENCYMS, 99999);
    mongoc_uri_set_option_as_int32 (
@@ -464,7 +464,7 @@ static void
 test_counters_auth (void *ctx)
 {
    char *host_and_port = test_framework_get_host_and_port ();
-   char *uri_str = test_framework_get_uri_str ();
+   char *uri_str = test_framework_get_uri_str (NULL);
    char *uri_str_bad = bson_strdup_printf (
       "mongodb://%s:%s@%s/", "bad_user", "bad_pass", host_and_port);
    mongoc_client_t *client;

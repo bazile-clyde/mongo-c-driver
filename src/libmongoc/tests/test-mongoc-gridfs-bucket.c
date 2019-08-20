@@ -825,7 +825,7 @@ test_upload_error (void *ctx)
    mongoc_client_destroy (client);
 
    /* initialize gridfs with a root user. */
-   uri = test_framework_get_uri ();
+   uri = test_framework_get_uri (NULL);
    mongoc_uri_set_username (uri, "fake_user");
    mongoc_uri_set_password (uri, "password");
    client = mongoc_client_new_from_uri (uri);

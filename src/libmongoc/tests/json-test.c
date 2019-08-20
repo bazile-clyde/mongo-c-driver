@@ -1315,9 +1315,9 @@ run_json_general_test (const json_test_config_t *config)
 
       if (bson_iter_init_find (&uri_iter, &test, "useMultipleMongoses") &&
           bson_iter_as_bool (&uri_iter)) {
-         uri = mongoc_uri_new (test_framework_getenv ("MULTIPLE_MONGOSES"));
+         uri = test_framework_get_uri ("MULTIPLE_MONGOSES");
       } else {
-         uri = test_framework_get_uri ();
+         uri = test_framework_get_uri (NULL);
       }
 
       if (bson_iter_init_find (&client_opts_iter, &test, "clientOptions")) {

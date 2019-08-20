@@ -179,7 +179,7 @@ _test_last_write_date (bool pooled)
    mongoc_server_description_t *s0, *s1;
    int64_t delta;
 
-   uri = test_framework_get_uri ();
+   uri = test_framework_get_uri (NULL);
    mongoc_uri_set_option_as_int32 (uri, "heartbeatFrequencyMS", 500);
 
    if (pooled) {

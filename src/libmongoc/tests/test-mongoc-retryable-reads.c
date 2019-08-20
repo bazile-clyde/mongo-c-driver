@@ -79,7 +79,7 @@ test_cmd_helpers (void *ctx)
    mongoc_database_t *database;
    const bson_t *doc;
 
-   uri = test_framework_get_uri ();
+   uri = test_framework_get_uri (NULL);
    mongoc_uri_set_option_as_bool (uri, "retryReads", true);
 
    client = mongoc_client_new_from_uri (uri);
@@ -227,7 +227,7 @@ test_retry_reads_off (void *ctx)
    bson_error_t error;
    bool res;
 
-   uri = test_framework_get_uri ();
+   uri = test_framework_get_uri (NULL);
    mongoc_uri_set_option_as_bool (uri, "retryreads", false);
    client = mongoc_client_new_from_uri (uri);
    test_framework_set_ssl_opts (client);

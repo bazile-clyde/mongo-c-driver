@@ -52,7 +52,7 @@ _test_common_get_host (void *ctx)
 
    CURSOR_COMMON_SETUP;
    cursor = ctor (coll);
-   uri = test_framework_get_uri ();
+   uri = test_framework_get_uri (NULL);
    hosts = mongoc_uri_get_hosts (uri);
    ret = mongoc_cursor_next (cursor, &doc);
    if (!ret && mongoc_cursor_error (cursor, &err)) {
@@ -138,8 +138,8 @@ _test_common_clone_w_concerns (void *ctx)
    mongoc_read_concern_destroy (cursor->read_concern);
    cursor->read_concern = read_concern;
    /* don't call mongoc_cursor_next (), since the test may run against a version
-   * of MongoDB that doesn't support read/write concerns, and we are only
-   * interested in testing if the clone process works. */
+    * of MongoDB that doesn't support read/write concerns, and we are only
+    * interested in testing if the clone process works. */
    cloned = mongoc_cursor_clone (cursor);
    /* test cloned read_concern. */
    ASSERT (!mongoc_read_concern_is_default (cloned->read_concern));
@@ -147,7 +147,8 @@ _test_common_clone_w_concerns (void *ctx)
                   MONGOC_READ_CONCERN_LEVEL_LOCAL);
    /* test cloned write_concern. */
    ASSERT (mongoc_write_concern_get_wmajority (cloned->write_concern));
-   ASSERT (mongoc_write_concern_get_wtimeout_int64 (cloned->write_concern) == 1000);
+   ASSERT (mongoc_write_concern_get_wtimeout_int64 (cloned->write_concern) ==
+           1000);
    ASSERT (mongoc_write_concern_get_w (cloned->write_concern) ==
            MONGOC_WRITE_CONCERN_W_MAJORITY);
    /* check generated bson in cloned cursor. */

@@ -47,7 +47,7 @@ test_new_transaction_unpins (void *ctx)
    bson_t *opts;
    int i;
 
-   uri = test_framework_get_uri ();
+   uri = test_framework_get_uri (NULL);
    add_multiple_mongoses (uri);
 
    /* Increase localThresholdMS to avoid false positives. Nodes
@@ -124,7 +124,7 @@ test_non_transaction_unpins (void *ctx)
    bson_t *opts;
    int i;
 
-   uri = test_framework_get_uri ();
+   uri = test_framework_get_uri (NULL);
    add_multiple_mongoses (uri);
 
    /* Increase localThresholdMS to avoid false positives. Nodes

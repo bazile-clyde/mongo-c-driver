@@ -448,7 +448,7 @@ test_mongoc_client_authenticate (void *context)
     * Try authenticating with that user.
     */
    bson_init (&q);
-   uri_str_no_auth = test_framework_get_uri_str_no_auth ("test");
+   uri_str_no_auth = test_framework_get_uri_str_no_auth ("test", NULL);
    uri_str_auth =
       test_framework_add_user_password (uri_str_no_auth, username, "testpass");
    auth_client = mongoc_client_new (uri_str_auth);
@@ -586,7 +586,7 @@ test_mongoc_client_authenticate_failure (void *context)
    bson_t q;
    bson_t empty = BSON_INITIALIZER;
    char *host = test_framework_get_host ();
-   char *uri_str_no_auth = test_framework_get_uri_str_no_auth (NULL);
+   char *uri_str_no_auth = test_framework_get_uri_str_no_auth (NULL, NULL);
    char *bad_uri_str =
       test_framework_add_user_password (uri_str_no_auth, "baduser", "badpass");
 
@@ -2535,7 +2535,7 @@ _test_mongoc_client_select_server_error (bool pooled)
    const char *server_type;
 
    if (pooled) {
-      uri = test_framework_get_uri ();
+      uri = test_framework_get_uri (NULL);
       mongoc_uri_set_option_as_int32 (uri, "serverSelectionTimeoutMS", 1000);
       pool = mongoc_client_pool_new (uri);
       test_framework_set_pool_ssl_opts (pool);

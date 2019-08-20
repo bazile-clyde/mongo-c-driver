@@ -14,7 +14,7 @@ _get_test_uri (void)
    mongoc_uri_t *uri;
 
    /* Use a URI with retryWrites off */
-   uri = test_framework_get_uri ();
+   uri = test_framework_get_uri (NULL);
    mongoc_uri_set_option_as_bool (uri, "retryWrites", false);
 
    return uri;
@@ -241,7 +241,7 @@ test_not_master_keep_pool (mongoc_client_t *client)
 
 static void
 test_not_master_keep_pool_runner (void *ctx)
-{   
+{
    /* Only run on 4.2 and higher */
    if (!test_framework_max_wire_version_at_least (8)) {
       return;
@@ -353,7 +353,7 @@ test_shutdown_reset_pool (mongoc_client_t *client)
 
 static void
 test_shutdown_reset_pool_runner (void *ctx)
-{   
+{
    int64_t max_wire_version;
 
    /* Only run if version >= 4.0 */

@@ -64,15 +64,16 @@ test_framework_add_user_password (const char *uri_str,
 char *
 test_framework_add_user_password_from_env (const char *uri_str);
 char *
-test_framework_get_uri_str_no_auth (const char *database_name);
+test_framework_get_uri_str_no_auth (const char *database_name,
+                                    const char *env_uri);
 char *
-test_framework_get_uri_str (void);
+test_framework_get_uri_str (const char *env_uri);
 char *
 test_framework_get_unix_domain_socket_uri_str (void);
 char *
 test_framework_get_unix_domain_socket_path_escaped (void);
 mongoc_uri_t *
-test_framework_get_uri (void);
+test_framework_get_uri (const char *env_uri);
 size_t
 test_framework_mongos_count (void);
 char *

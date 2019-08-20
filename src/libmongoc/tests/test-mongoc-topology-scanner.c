@@ -596,8 +596,8 @@ test_topology_retired_fails_to_initiate (void)
    scanner = mongoc_topology_scanner_new (
       NULL, NULL, &_retired_fails_to_initiate_cb, NULL, TIMEOUT);
 
-   BSON_ASSERT (_mongoc_host_list_from_string (&host_list,
-                                  mock_server_get_host_and_port (server)));
+   BSON_ASSERT (_mongoc_host_list_from_string (
+      &host_list, mock_server_get_host_and_port (server)));
 
    mongoc_topology_scanner_add (scanner, &host_list, 1);
    mongoc_topology_scanner_start (scanner, false);
@@ -646,7 +646,7 @@ _test_topology_scanner_does_not_renegotiate (bool pooled)
    bool r;
    bson_error_t error;
 
-   uri = test_framework_get_uri ();
+   uri = test_framework_get_uri (NULL);
    mongoc_uri_set_option_as_int32 (uri, "heartbeatFrequencyMS", 500);
    /* faster pool shutdown to make the test quick */
    mongoc_uri_set_option_as_int32 (uri, "connectTimeoutMS", 1000);

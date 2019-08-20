@@ -61,7 +61,8 @@ test_iteration_count (int count, bool should_succeed)
    /* set up the scram state to immediately test step 2. */
    _mongoc_scram_init (&scram, MONGOC_CRYPTO_ALGORITHM_SHA_1);
    _mongoc_scram_set_pass (&scram, "password");
-   bson_strncpy (scram.encoded_nonce, client_nonce, sizeof (scram.encoded_nonce));
+   bson_strncpy (
+      scram.encoded_nonce, client_nonce, sizeof (scram.encoded_nonce));
    scram.encoded_nonce_len = (int32_t) strlen (client_nonce);
    scram.auth_message = bson_malloc0 (4096);
    scram.auth_messagemax = 4096;
@@ -306,7 +307,7 @@ _try_auth (bool pooled,
    bson_t reply;
    bool res;
 
-   uri = test_framework_get_uri ();
+   uri = test_framework_get_uri (NULL);
    mongoc_uri_set_username (uri, user);
    mongoc_uri_set_password (uri, pwd);
    if (mechanism) {
@@ -418,7 +419,7 @@ _skip_if_no_sha256 ()
    mongoc_client_t *client;
    bool res;
 
-   uri = test_framework_get_uri ();
+   uri = test_framework_get_uri (NULL);
    mongoc_uri_set_auth_mechanism (uri, "SCRAM-SHA-256");
    client = mongoc_client_new_from_uri (uri);
    res = mongoc_client_command_simple (client,

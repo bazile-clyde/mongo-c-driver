@@ -689,7 +689,7 @@ test_inherit_from_client (void *ctx)
    mongoc_transaction_opt_t *topt;
    const mongoc_transaction_opt_t *returned_topt;
 
-   uri = test_framework_get_uri ();
+   uri = test_framework_get_uri (NULL);
 
    rc = mongoc_read_concern_new ();
    mongoc_read_concern_set_level (rc, MONGOC_READ_CONCERN_LEVEL_MAJORITY);
@@ -788,7 +788,7 @@ test_transaction_recovery_token_cleared (void *ctx)
    mongoc_uri_t *uri;
    bson_t txn_opts;
 
-   uri = test_framework_get_uri ();
+   uri = test_framework_get_uri (NULL);
    ASSERT_OR_PRINT (
       mongoc_uri_upsert_host_and_port (uri, "localhost:27018", &error), error);
    client = mongoc_client_new_from_uri (uri);

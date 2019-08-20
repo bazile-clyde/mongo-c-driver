@@ -29,7 +29,7 @@ test_topology_client_creation (void)
    mongoc_server_stream_t *server_stream;
    bson_error_t error;
 
-   uri = test_framework_get_uri ();
+   uri = test_framework_get_uri (NULL);
    mongoc_uri_set_option_as_int32 (uri, "localThresholdMS", 42);
    mongoc_uri_set_option_as_int32 (uri, "connectTimeoutMS", 12345);
    mongoc_uri_set_option_as_int32 (uri, "serverSelectionTimeoutMS", 54321);
@@ -340,7 +340,7 @@ _test_topology_invalidate_server (bool pooled)
    uint32_t id;
    mongoc_server_stream_t *server_stream;
 
-   uri = test_framework_get_uri ();
+   uri = test_framework_get_uri (NULL);
    /* no auto heartbeat */
    mongoc_uri_set_option_as_int32 (uri, "heartbeatFrequencyMS", INT32_MAX);
    mongoc_uri_set_option_as_int32 (uri, "connectTimeoutMS", 2000);

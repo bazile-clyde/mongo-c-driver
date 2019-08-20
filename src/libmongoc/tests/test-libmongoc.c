@@ -600,8 +600,11 @@ test_framework_get_unix_domain_socket_path_escaped (void)
 }
 
 static char *
-_uri_str_from_env (void)
+_uri_str_from_env (const char *env_uri)
 {
+   if (env_uri && strlen (env_uri)) {
+      return test_framework_getenv (env_uri);
+   }
    return test_framework_getenv ("MONGOC_TEST_URI");
 }
 
@@ -611,7 +614,7 @@ _uri_from_env (void)
    char *env_uri_str;
    mongoc_uri_t *uri;
 
-   env_uri_str = _uri_str_from_env ();
+   env_uri_str = _uri_str_from_env (NULL);
    if (env_uri_str) {
       uri = mongoc_uri_new (env_uri_str);
       bson_free (env_uri_str);
@@ -1186,7 +1189,8 @@ add_option_to_uri_str (bson_string_t *uri_string,
  *--------------------------------------------------------------------------
  */
 char *
-test_framework_get_uri_str_no_auth (const char *database_name)
+test_framework_get_uri_str_no_auth (const char *database_name,
+                                    const char *env_uri)
 {
    char *env_uri_str;
    bson_t ismaster_response;
@@ -1198,7 +1202,7 @@ test_framework_get_uri_str_no_auth (const char *database_name)
    char *host;
    uint16_t port;
 
-   env_uri_str = _uri_str_from_env ();
+   env_uri_str = _uri_str_from_env (env_uri);
    if (env_uri_str) {
       uri_string = bson_string_new (env_uri_str);
       if (database_name) {
@@ -1287,14 +1291,14 @@ test_framework_get_uri_str_no_auth (const char *database_name)
  *--------------------------------------------------------------------------
  */
 char *
-test_framework_get_uri_str ()
+test_framework_get_uri_str (const char *env_uri)
 {
    char *uri_str_no_auth;
    char *uri_str;
 
    /* no_auth also contains compressors. */
 
-   uri_str_no_auth = test_framework_get_uri_str_no_auth (NULL);
+   uri_str_no_auth = test_framework_get_uri_str_no_auth (NULL, env_uri);
    uri_str = test_framework_add_user_password_from_env (uri_str_no_auth);
 
    bson_free (uri_str_no_auth);
@@ -1320,9 +1324,9 @@ test_framework_get_uri_str ()
  *--------------------------------------------------------------------------
  */
 mongoc_uri_t *
-test_framework_get_uri ()
+test_framework_get_uri (const char *env_uri)
 {
-   char *test_uri_str = test_framework_get_uri_str ();
+   char *test_uri_str = test_framework_get_uri_str (env_uri);
    mongoc_uri_t *uri = mongoc_uri_new (test_uri_str);
 
    BSON_ASSERT (uri);
@@ -1345,7 +1349,7 @@ test_framework_get_uri ()
 size_t
 test_framework_mongos_count (void)
 {
-   mongoc_uri_t *uri = test_framework_get_uri ();
+   mongoc_uri_t *uri = test_framework_get_uri (NULL);
    const mongoc_host_list_t *h;
    size_t count = 0;
 
@@ -1551,7 +1555,7 @@ test_framework_set_ssl_opts (mongoc_client_t *client)
 mongoc_client_t *
 test_framework_client_new ()
 {
-   char *test_uri_str = test_framework_get_uri_str ();
+   char *test_uri_str = test_framework_get_uri_str (NULL);
    mongoc_client_t *client = mongoc_client_new (test_uri_str);
 
    BSON_ASSERT (client);
@@ -1639,7 +1643,7 @@ test_framework_set_pool_ssl_opts (mongoc_client_pool_t *pool)
 mongoc_client_pool_t *
 test_framework_client_pool_new ()
 {
-   mongoc_uri_t *test_uri = test_framework_get_uri ();
+   mongoc_uri_t *test_uri = test_framework_get_uri (NULL);
    mongoc_client_pool_t *pool = mongoc_client_pool_new (test_uri);
 
    BSON_ASSERT (pool);
