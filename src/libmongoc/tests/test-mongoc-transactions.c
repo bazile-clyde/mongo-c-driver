@@ -873,7 +873,7 @@ test_selected_server_is_pinned_to_mongos (void *ctx)
    mongoc_server_description_t *sd = NULL;
    int i;
 
-   uri = test_framework_get_uri ();
+   uri = test_framework_get_uri (NULL);
    ASSERT_OR_PRINT (
       mongoc_uri_upsert_host_and_port (uri, "localhost:27018", &error), error);
 
