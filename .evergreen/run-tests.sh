@@ -9,7 +9,8 @@ SSL=${SSL:-nossl}
 URI=${URI:-}
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 DNS=${DNS:-nodns}
-MULTIPLE_MONGOSES="mongodb://localhost:27017,localhost:27018/"
+
+export MULTIPLE_MONGOSES="mongodb://localhost:27017,localhost:27018/"
 
 # AddressSanitizer configuration
 export ASAN_OPTIONS="detect_leaks=1 abort_on_error=1 symbolize=1"
