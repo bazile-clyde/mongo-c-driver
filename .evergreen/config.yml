@@ -11731,7 +11731,8 @@ buildvariants:
     CC: clang
   run_on: ubuntu1604-test
   tasks:
-  - .compression
+  - .compression !.zstd
+  - debug-compile-compression-zstd
   - debug-compile-scan-build
   - debug-compile-asan-clang
   - debug-compile-ubsan
@@ -11847,7 +11848,7 @@ buildvariants:
     CC: gcc
   run_on: ubuntu1604-test
   tasks:
-  - .compression
+  - .compression !.zstd
   - debug-compile-asan-gcc
   - debug-compile-coverage
   - debug-compile-nosrv
@@ -11874,7 +11875,7 @@ buildvariants:
     CC: clang
   run_on: macos-1012
   tasks:
-  - .compression !.snappy
+  - .compression !.snappy !.zstd
   - debug-compile-coverage
   - release-compile
   - debug-compile-nosasl-nossl
@@ -12090,7 +12091,7 @@ buildvariants:
     CC: gcc
   run_on: ubuntu1604-arm64-large
   tasks:
-  - .compression !.snappy
+  - .compression !.snappy !.zstd
   - debug-compile-scan-build
   - debug-compile-coverage
   - debug-compile-no-align
