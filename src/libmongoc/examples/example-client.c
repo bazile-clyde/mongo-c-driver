@@ -18,7 +18,9 @@ main (int argc, char *argv[])
    const char *collection_name = "test";
    bson_t query;
    char *str;
-   const char *uri_string = "mongodb://127.0.0.1/?appname=client-example";
+   // const char *uri_string = "mongodb://127.0.0.1/?appname=client-example";
+   const char *uri_string =
+      "mongodb://valid-isrgrootx1.letsencrypt.org:443/?tls=true";
    mongoc_uri_t *uri;
 
    mongoc_init ();

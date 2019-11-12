@@ -474,6 +474,7 @@ _mongoc_openssl_ctx_new (mongoc_ssl_opt_t *opt)
    ctx = SSL_CTX_new (SSLv23_method ());
 
    BSON_ASSERT (ctx);
+   SSL_CTX_set_tlsext_status_type (ctx, TLSEXT_STATUSTYPE_ocsp);
 
    /* SSL_OP_ALL - Activate all bug workaround options, to support buggy client
     * SSL's. */
