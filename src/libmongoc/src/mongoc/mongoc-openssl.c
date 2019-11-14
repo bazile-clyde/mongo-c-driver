@@ -496,6 +496,7 @@ _ocsp_tlsext_status_cb (SSL *ssl, void *arg)
    OCSP_RESPONSE *resp = NULL;
    OCSP_BASICRESP *basic;
    X509_STORE *store;
+   STACK_OF (X509) * certs;
    const unsigned char *r;
    int len, status;
 
@@ -528,7 +529,26 @@ _ocsp_tlsext_status_cb (SSL *ssl, void *arg)
       return 0;
    }
 
+   /* RFC 6961: If the client receives a "ocsp_response_list" that does not
+    * contain a response for one or more of the certificates in the completed
+    * certificate chain, the client SHOULD attempt to validate the certificate
+    * using an alternative retrieval method, such as downloading the relevant
+    * CRL; OCSP SHOULD in this situation only be used for the end-entity
+    * certificate, not intermediate CA certificates, for reasons stated above.
+    */
+
+   /* RFC 6961: If the OCSP response received from the server does not result in
+    * a definite "good" or "revoked" status, it is inconclusive.  A TLS client
+    * in such a case MAY check the validity of the server certificate through
+    * other means, e.g., by directly querying the certificate issuer. */
+
    store = SSL_CTX_get_cert_store (SSL_get_SSL_CTX (ssl));
+   certs = SSL_get0_verified_chain (ssl);
+   if (!OCSP_basic_verify (basic, certs, store, 0)) {
+      MONGOC_ERROR ("Failed to verify signature for OCSP response");
+      return 0;
+   }
+
    printf ("Ending callback...\n"); // TODO: for debugging only
    return 1;
 }
@@ -547,6 +567,7 @@ _mongoc_openssl_ctx_new (mongoc_ssl_opt_t *opt)
 {
    SSL_CTX *ctx = NULL;
    int ssl_ctx_options = 0;
+
    /*
     * Ensure we are initialized. This is safe to call multiple times.
     */
@@ -556,8 +577,8 @@ _mongoc_openssl_ctx_new (mongoc_ssl_opt_t *opt)
 
    BSON_ASSERT (ctx);
 
-   /* SSL_OP_ALL - Activate all bug workaround options, to support buggy
-    * client SSL's. */
+   /* SSL_OP_ALL - Activate all bug workaround options, to support buggy client
+    * SSL's. */
    ssl_ctx_options |= SSL_OP_ALL;
 
    /* SSL_OP_NO_SSLv2 - Disable SSL v2 support */
@@ -592,8 +613,8 @@ _mongoc_openssl_ctx_new (mongoc_ssl_opt_t *opt)
    SSL_CTX_set_cipher_list (ctx, "HIGH:!EXPORT:!aNULL@STRENGTH");
 #endif
 
-   /* If renegotiation is needed, don't return from recv() or send() until
-    * it's successful.
+   /* If renegotiation is needed, don't return from recv() or send() until it's
+    * successful.
     * Note: this is for blocking sockets only. */
    SSL_CTX_set_mode (ctx, SSL_MODE_AUTO_RETRY);
 
@@ -627,6 +648,7 @@ _mongoc_openssl_ctx_new (mongoc_ssl_opt_t *opt)
    }
 
 #ifndef OPENSSL_NO_OCSP
+   printf ("Enabling OCSP...\n"); // TODO: debugging
    /* request that a server send back an OCSP status response (also known as
     * OCSP stapling) even if the revocation list has been loaded  */
    if (!SSL_CTX_set_tlsext_status_type (ctx, TLSEXT_STATUSTYPE_ocsp)) {
