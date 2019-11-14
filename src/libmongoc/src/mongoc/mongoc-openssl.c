@@ -495,6 +495,7 @@ _ocsp_tlsext_status_cb (SSL *ssl, void *arg)
 {
    OCSP_RESPONSE *resp = NULL;
    OCSP_BASICRESP *basic;
+   X509_STORE *store;
    const unsigned char *r;
    int len, status;
 
@@ -527,6 +528,7 @@ _ocsp_tlsext_status_cb (SSL *ssl, void *arg)
       return 0;
    }
 
+   store = SSL_CTX_get_cert_store (SSL_get_SSL_CTX (ssl));
    printf ("Ending callback...\n"); // TODO: for debugging only
    return 1;
 }
@@ -545,7 +547,6 @@ _mongoc_openssl_ctx_new (mongoc_ssl_opt_t *opt)
 {
    SSL_CTX *ctx = NULL;
    int ssl_ctx_options = 0;
-
    /*
     * Ensure we are initialized. This is safe to call multiple times.
     */
@@ -556,8 +557,7 @@ _mongoc_openssl_ctx_new (mongoc_ssl_opt_t *opt)
    BSON_ASSERT (ctx);
 
    /* SSL_OP_ALL - Activate all bug workaround options, to support buggy
-    * client
-    * SSL's. */
+    * client SSL's. */
    ssl_ctx_options |= SSL_OP_ALL;
 
    /* SSL_OP_NO_SSLv2 - Disable SSL v2 support */
@@ -593,8 +593,7 @@ _mongoc_openssl_ctx_new (mongoc_ssl_opt_t *opt)
 #endif
 
    /* If renegotiation is needed, don't return from recv() or send() until
-    * it's
-    * successful.
+    * it's successful.
     * Note: this is for blocking sockets only. */
    SSL_CTX_set_mode (ctx, SSL_MODE_AUTO_RETRY);
 
@@ -635,8 +634,8 @@ _mongoc_openssl_ctx_new (mongoc_ssl_opt_t *opt)
       SSL_CTX_free (ctx);
       return NULL;
    }
-
    SSL_CTX_set_tlsext_status_cb (ctx, _ocsp_tlsext_status_cb);
+// SSL_CTX_set_tlsext_status_arg (ctx, &debug);
 #endif
    return ctx;
 }
