@@ -21,10 +21,11 @@
 #include <bson/bson.h>
 #include <limits.h>
 #include <openssl/bio.h>
-#include <openssl/ssl.h>
-#include <openssl/err.h>
-#include <openssl/x509v3.h>
 #include <openssl/crypto.h>
+#include <openssl/err.h>
+#include <openssl/ocsp.h>
+#include <openssl/ssl.h>
+#include <openssl/x509v3.h>
 
 #include <string.h>
 
@@ -451,6 +452,85 @@ _mongoc_openssl_setup_pem_file (SSL_CTX *ctx,
    return 1;
 }
 
+// TODO: start debugging
+// stolen from here
+// https://android.googlesource.com/platform/external/wpa_supplicant_8/+/master/src/crypto/tls_openssl.c
+static void
+ocsp_debug_print_resp (OCSP_RESPONSE *rsp)
+{
+   BIO *out;
+   size_t rlen;
+   char *txt;
+   int res;
+
+   out = BIO_new (BIO_s_mem ());
+   if (!out) {
+      return;
+   }
+
+   OCSP_RESPONSE_print (out, rsp, 0);
+   rlen = BIO_ctrl_pending (out);
+   txt = bson_malloc (rlen + 1);
+   if (!txt) {
+      BIO_free (out);
+      return;
+   }
+   res = BIO_read (out, txt, rlen);
+   if (res > 0) {
+      txt[res] = '\0';
+      printf ("OpenSSL: OCSP Response\n%s", txt);
+   }
+   BIO_free (out);
+}
+// TODO: end debugging
+
+#ifndef OPENSSL_NO_OCSP
+/* This callback returns a negative value on error; 0 if the response is not
+ * acceptable (in which case the handshake will fail) or a positive value if it
+ * is acceptable.
+ *
+ */
+static int
+_ocsp_tlsext_status_cb (SSL *ssl, void *arg)
+{
+   OCSP_RESPONSE *resp = NULL;
+   OCSP_BASICRESP *basic;
+   const unsigned char *r;
+   int len, status;
+
+   printf ("Starting callback...\n"); // TODO: for debugging only
+
+   len = SSL_get_tlsext_status_ocsp_resp (ssl, &r);
+   if (!r) {
+      MONGOC_ERROR ("No OCSP response received");
+      return 1; // TODO: is the right thing todo?
+   }
+
+   if (!d2i_OCSP_RESPONSE (&resp, &r, len)) {
+      MONGOC_ERROR ("Failed to parse OCSP response");
+      return 0;
+   }
+
+   ocsp_debug_print_resp (resp); // TODO: for debugging only
+
+   status = OCSP_response_status (resp);
+   if (status != OCSP_RESPONSE_STATUS_SUCCESSFUL) {
+      MONGOC_ERROR ("OCSP response error %d %s",
+                    status,
+                    OCSP_response_status_str (status));
+      return 0;
+   }
+
+   basic = OCSP_response_get1_basic (resp);
+   if (!basic) {
+      MONGOC_ERROR ("Could not find BasicOCSPResponse");
+      return 0;
+   }
+
+   printf ("Ending callback...\n"); // TODO: for debugging only
+   return 1;
+}
+#endif
 
 /**
  * _mongoc_openssl_ctx_new:
@@ -474,9 +554,9 @@ _mongoc_openssl_ctx_new (mongoc_ssl_opt_t *opt)
    ctx = SSL_CTX_new (SSLv23_method ());
 
    BSON_ASSERT (ctx);
-   SSL_CTX_set_tlsext_status_type (ctx, TLSEXT_STATUSTYPE_ocsp);
 
-   /* SSL_OP_ALL - Activate all bug workaround options, to support buggy client
+   /* SSL_OP_ALL - Activate all bug workaround options, to support buggy
+    * client
     * SSL's. */
    ssl_ctx_options |= SSL_OP_ALL;
 
@@ -512,7 +592,8 @@ _mongoc_openssl_ctx_new (mongoc_ssl_opt_t *opt)
    SSL_CTX_set_cipher_list (ctx, "HIGH:!EXPORT:!aNULL@STRENGTH");
 #endif
 
-   /* If renegotiation is needed, don't return from recv() or send() until it's
+   /* If renegotiation is needed, don't return from recv() or send() until
+    * it's
     * successful.
     * Note: this is for blocking sockets only. */
    SSL_CTX_set_mode (ctx, SSL_MODE_AUTO_RETRY);
@@ -546,6 +627,17 @@ _mongoc_openssl_ctx_new (mongoc_ssl_opt_t *opt)
       return NULL;
    }
 
+#ifndef OPENSSL_NO_OCSP
+   /* request that a server send back an OCSP status response (also known as
+    * OCSP stapling) even if the revocation list has been loaded  */
+   if (!SSL_CTX_set_tlsext_status_type (ctx, TLSEXT_STATUSTYPE_ocsp)) {
+      MONGOC_ERROR ("Failed to enable OCSP with stapling");
+      SSL_CTX_free (ctx);
+      return NULL;
+   }
+
+   SSL_CTX_set_tlsext_status_cb (ctx, _ocsp_tlsext_status_cb);
+#endif
    return ctx;
 }
 
