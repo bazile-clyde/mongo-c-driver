@@ -453,6 +453,35 @@ _mongoc_openssl_setup_pem_file (SSL_CTX *ctx,
 }
 
 // TODO: start debugging
+static void
+debug_print_cert (X509 *cert, const char *title)
+{
+   BIO *out;
+   size_t rlen;
+   char *txt;
+   int res;
+
+   out = BIO_new (BIO_s_mem ());
+   if (!out)
+      return;
+
+   X509_print (out, cert);
+   rlen = BIO_ctrl_pending (out);
+   txt = bson_malloc (rlen + 1);
+   if (!txt) {
+      BIO_free (out);
+      return;
+   }
+
+   res = BIO_read (out, txt, rlen);
+   if (res > 0) {
+      txt[res] = '\0';
+      printf ("OpenSSL: %s\n%s", title, txt);
+   }
+   bson_free (txt);
+   BIO_free (out);
+}
+
 // stolen from here
 // https://android.googlesource.com/platform/external/wpa_supplicant_8/+/master/src/crypto/tls_openssl.c
 static void
@@ -497,8 +526,12 @@ _ocsp_tlsext_status_cb (SSL *ssl, void *arg)
    OCSP_BASICRESP *basic;
    X509_STORE *store;
    STACK_OF (X509) * certs;
+   OCSP_CERTID *id;
+   X509 *peer;
+   X509 *issuer;
    const unsigned char *r;
-   int len, status;
+   int len, reason, status, res;
+   ASN1_GENERALIZEDTIME *produced_at, *this_update, *next_update;
 
    printf ("Starting callback...\n"); // TODO: for debugging only
 
@@ -537,19 +570,86 @@ _ocsp_tlsext_status_cb (SSL *ssl, void *arg)
     * certificate, not intermediate CA certificates, for reasons stated above.
     */
 
-   /* RFC 6961: If the OCSP response received from the server does not result in
-    * a definite "good" or "revoked" status, it is inconclusive.  A TLS client
-    * in such a case MAY check the validity of the server certificate through
-    * other means, e.g., by directly querying the certificate issuer. */
-
    store = SSL_CTX_get_cert_store (SSL_get_SSL_CTX (ssl));
    certs = SSL_get0_verified_chain (ssl);
-   if (!OCSP_basic_verify (basic, certs, store, 0)) {
-      MONGOC_ERROR ("Failed to verify signature for OCSP response");
+
+   // TODO: start debugging
+
+   printf ("Number of certs in chain: %d\n", sk_X509_num (certs));
+   for (int i = 0; i < sk_X509_num (certs); i++) {
+      X509 *cert;
+      cert = sk_X509_value (certs, i);
+      debug_print_cert (cert, "Print Cert");
+   }
+
+   // TODO: end debugging
+
+   if (1 != OCSP_basic_verify (basic, certs, store, 0)) {
+      MONGOC_ERROR ("OCSP response failed verification");
+      OCSP_BASICRESP_free (basic);
+      OCSP_RESPONSE_free (resp);
       return 0;
    }
 
+   peer = SSL_get_peer_certificate (ssl);
+   if (!peer) {
+      MONGOC_ERROR ("Peer certificate not available for OCSP status check");
+      OCSP_BASICRESP_free (basic);
+      OCSP_RESPONSE_free (resp);
+      return 0;
+   }
+
+   issuer = sk_X509_value (certs, 1); // TODO: find better way to do this
+   if (!issuer) {
+      MONGOC_ERROR (
+         "Peer issuer certificate not available for OCSP status check");
+      OCSP_BASICRESP_free (basic);
+      OCSP_RESPONSE_free (resp);
+      return 0;
+   }
+
+   id = OCSP_cert_to_id (NULL /* SHA1 */, peer, issuer);
+   if (!id) {
+      MONGOC_ERROR ("Could not create OCSP certificate identifier (SHA1)");
+      OCSP_BASICRESP_free (basic);
+      OCSP_RESPONSE_free (resp);
+      return 0;
+   }
+
+   res = OCSP_resp_find_status (
+      basic, id, &status, &reason, &produced_at, &this_update, &next_update);
+   if (!res) {
+      MONGOC_ERROR ("Could not find current server certificate");
+      OCSP_BASICRESP_free (basic);
+      OCSP_RESPONSE_free (resp);
+      return 0;
+   }
+
+   if (status != V_OCSP_CERTSTATUS_GOOD) {
+      printf ("OCSP Certificate Status: Good\n"); // TODO: debugging
+      return 1;
+   }
+
+   if (status == V_OCSP_CERTSTATUS_REVOKED) {
+      MONGOC_ERROR ("OCSP Certificate Status: Revoked. Reason: %d", reason);
+      return 0;
+   }
+
+   if (status == V_OCSP_CERTSTATUS_UNKNOWN) {
+      /* RFC 6961: If the OCSP response received from the server does not result
+       * in a definite "good" or "revoked" status, it is inconclusive.  A TLS
+       * client in such a case MAY check the validity of the server certificate
+       * through other means, e.g., by directly querying the certificate issuer.
+       */
+   }
+
    printf ("Ending callback...\n"); // TODO: for debugging only
+
+   printf ("OCSP status unknown, but OCSP was not required, so allow "
+           "connection to continue");
+   OCSP_CERTID_free (id);
+   OCSP_BASICRESP_free (basic);
+   OCSP_RESPONSE_free (resp);
    return 1;
 }
 #endif
@@ -613,7 +713,8 @@ _mongoc_openssl_ctx_new (mongoc_ssl_opt_t *opt)
    SSL_CTX_set_cipher_list (ctx, "HIGH:!EXPORT:!aNULL@STRENGTH");
 #endif
 
-   /* If renegotiation is needed, don't return from recv() or send() until it's
+   /* If renegotiation is needed, don't return from recv() or send() until
+    * it's
     * successful.
     * Note: this is for blocking sockets only. */
    SSL_CTX_set_mode (ctx, SSL_MODE_AUTO_RETRY);
