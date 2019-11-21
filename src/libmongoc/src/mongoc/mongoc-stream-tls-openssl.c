@@ -644,6 +644,13 @@ _mongoc_stream_tls_openssl_should_retry (mongoc_stream_t *stream)
    RETURN (mongoc_stream_should_retry (tls->base_stream));
 }
 
+static int
+verify_callback (int preverify_ok, X509_STORE_CTX *x509_ctx)
+{
+   printf ("VERIFY_CALLBACK: preverify_ok=%d\n", preverify_ok);
+   return 1;
+}
+
 /*
  *--------------------------------------------------------------------------
  *
@@ -716,9 +723,9 @@ mongoc_stream_tls_openssl_new (mongoc_stream_t *base_stream,
    }
 
    if (opt->weak_cert_validation) {
-      SSL_CTX_set_verify (ssl_ctx, SSL_VERIFY_NONE, NULL);
+      SSL_CTX_set_verify (ssl_ctx, SSL_VERIFY_NONE, verify_callback);
    } else {
-      SSL_CTX_set_verify (ssl_ctx, SSL_VERIFY_PEER, NULL);
+      SSL_CTX_set_verify (ssl_ctx, SSL_VERIFY_PEER, verify_callback);
    }
 
    bio_ssl = BIO_new_ssl (ssl_ctx, client);

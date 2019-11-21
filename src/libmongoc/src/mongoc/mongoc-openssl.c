@@ -23,7 +23,12 @@
 #include <openssl/bio.h>
 #include <openssl/crypto.h>
 #include <openssl/err.h>
+
+/* OpenSSL 1.1.0+ */
+#if (OPENSSL_VERSION_NUMBER >= 0x10100000L) && !defined(OPENSSL_NO_OCSP)
 #include <openssl/ocsp.h>
+#endif
+
 #include <openssl/ssl.h>
 #include <openssl/x509v3.h>
 
@@ -482,8 +487,6 @@ debug_print_cert (X509 *cert, const char *title)
    BIO_free (out);
 }
 
-// stolen from here
-// https://android.googlesource.com/platform/external/wpa_supplicant_8/+/master/src/crypto/tls_openssl.c
 static void
 ocsp_debug_print_resp (OCSP_RESPONSE *rsp)
 {
@@ -513,34 +516,30 @@ ocsp_debug_print_resp (OCSP_RESPONSE *rsp)
 }
 // TODO: end debugging
 
-#ifndef OPENSSL_NO_OCSP
+#if (OPENSSL_VERSION_NUMBER >= 0x10100000L) && !defined(OPENSSL_NO_OCSP)
 /* This callback returns a negative value on error; 0 if the response is not
  * acceptable (in which case the handshake will fail) or a positive value if it
- * is acceptable.
- */
+ * is acceptable. */
 static int
-_ocsp_tlsext_status_cb (SSL *ssl, void *arg)
+ocsp_tlsext_status_cb (SSL *ssl, void *arg)
 {
    OCSP_RESPONSE *resp = NULL;
    OCSP_BASICRESP *basic = NULL;
-   const STACK_OF (X509) *basic_certs = NULL;
    X509_STORE *store = NULL;
    STACK_OF (X509) *cert_chain = NULL;
-   OCSP_CERTID *id = NULL;
    const unsigned char *r;
    int i, len, status;
 
-   printf ("Starting callback...\n"); // TODO: for debugging only
-
+   printf ("GET_VERIFY_RESULT=%ld\n", SSL_get_verify_result (ssl));
    len = SSL_get_tlsext_status_ocsp_resp (ssl, &r);
    if (!r) {
       MONGOC_ERROR ("No OCSP response received");
-      return 1; // TODO: is the right thing todo?
+      return 1;
    }
 
    if (!d2i_OCSP_RESPONSE (&resp, &r, len)) {
       MONGOC_ERROR ("Failed to parse OCSP response");
-      return 0;
+      return -1;
    }
 
    ocsp_debug_print_resp (resp); // TODO: for debugging only
@@ -550,58 +549,23 @@ _ocsp_tlsext_status_cb (SSL *ssl, void *arg)
       MONGOC_ERROR ("OCSP response error %d %s",
                     status,
                     OCSP_response_status_str (status));
-      return 0;
+      OCSP_RESPONSE_free (resp);
+      return -1;
    }
 
    basic = OCSP_response_get1_basic (resp);
    if (!basic) {
       MONGOC_ERROR ("Could not find BasicOCSPResponse");
-      return 0;
+      OCSP_BASICRESP_free (basic);
+      OCSP_RESPONSE_free (resp);
+      return -1;
    }
 
    store = SSL_CTX_get_cert_store (SSL_get_SSL_CTX (ssl));
    cert_chain = SSL_get0_verified_chain (ssl);
 
-   // TODO: start debugging
-
-   printf ("Number of certs in chain: %d\n", sk_X509_num (cert_chain));
-   for (i = 0; i < sk_X509_num (cert_chain); i++) {
-      X509 *cert;
-      cert = sk_X509_value (cert_chain, i);
-      debug_print_cert (cert, "Cert chain...\n");
-   }
-
-   // TODO: end debugging
-
-   /* TODO: consider if guard. check curl example
-   * #if ((OPENSSL_VERSION_NUMBER <= 0x1000201fL)  || \
-   *   (defined(LIBRESSL_VERSION_NUMBER) &&                               \
-   *    LIBRESSL_VERSION_NUMBER <= 0x2040200fL))
-   */
-
-   // TODO: why is this check necessary? Taken from curl example
-   basic_certs = OCSP_resp_get0_certs (basic);
-   printf ("cert_chain len: %d\n", sk_X509_num (cert_chain));
-   printf ("basic_certs len: %d\n", sk_X509_num (basic_certs));
-   if (sk_X509_num (cert_chain) >= 2 && sk_X509_num (basic_certs) >= 1) {
-      X509 *responder =
-         sk_X509_value (basic_certs, sk_X509_num (basic_certs) - 1);
-
-      debug_print_cert (responder, "RESPONDER\n");
-
-      // TODO: verify the need for this. Taken from curl... /* Find issuer of
-      // responder cert and add it to the OCSP response chain */
-      for (i = 0; i < sk_X509_num (cert_chain); i++) {
-         X509 *issuer = sk_X509_value (cert_chain, i);
-         if (X509_check_issued (issuer, responder) == X509_V_OK) {
-            if (!OCSP_basic_add1_cert (basic, issuer)) {
-               MONGOC_ERROR ("Could not add issuer cert to OCSP response");
-               return 0;
-            }
-         }
-      }
-   }
-   // TODO: if guard would end here... #endif
+   debug_print_cert (sk_X509_value (cert_chain, 1),
+                     "CERT: "); // TODO: for debugging only
 
    if (1 != OCSP_basic_verify (basic, cert_chain, store, 0)) {
       MONGOC_ERROR ("OCSP response failed verification");
@@ -611,11 +575,9 @@ _ocsp_tlsext_status_cb (SSL *ssl, void *arg)
    }
 
 
-   printf ("OCSP_resp_count: %d\n", OCSP_resp_count (basic));
    for (i = 0; i < OCSP_resp_count (basic); i++) {
-      int cert_status, crl_reason;
+      int cert_status, reason;
       OCSP_SINGLERESP *single = NULL;
-      OCSP_RESPONSE *temp = NULL;
 
       ASN1_GENERALIZEDTIME *produced_at, *this_update, *next_update;
 
@@ -624,16 +586,9 @@ _ocsp_tlsext_status_cb (SSL *ssl, void *arg)
          continue;
       }
 
-      // TODO: start debugging
-      temp = OCSP_response_create (cert_status, basic);
-      ocsp_debug_print_resp (temp); // TODO: for debugging only
-
-      // TODO: end debugging
-
       cert_status = OCSP_single_get0_status (
-         single, &crl_reason, &produced_at, &this_update, &next_update);
+         single, &reason, &produced_at, &this_update, &next_update);
 
-      // TODO: check magic args
       if (!OCSP_check_validity (this_update, next_update, 300L, -1L)) {
          MONGOC_ERROR ("OCSP response has expired");
          OCSP_BASICRESP_free (basic);
@@ -641,75 +596,21 @@ _ocsp_tlsext_status_cb (SSL *ssl, void *arg)
          return 0;
       }
 
-      printf ("SSL certificate status: %s (%d)\n",
-              OCSP_cert_status_str (cert_status),
-              cert_status);
-
       switch (cert_status) {
       case V_OCSP_CERTSTATUS_GOOD:
-         printf ("OCSP Certificate Status: Good\n"); // TODO: debugging
          break;
 
       case V_OCSP_CERTSTATUS_REVOKED:
-         MONGOC_ERROR ("OCSP Certificate Status: Revoked");
+         MONGOC_ERROR ("OCSP Certificate Status: Revoked. Reason %d", reason);
+         OCSP_BASICRESP_free (basic);
+         OCSP_RESPONSE_free (resp);
          return 0;
 
-      case V_OCSP_CERTSTATUS_UNKNOWN:
-         /* RFC 6961: If the OCSP response received from the server does not
-          * result
-          * in a definite "good" or "revoked" status, it is inconclusive.  A TLS
-          * client in such a case MAY check the validity of the server
-          * certificate
-          * through other means, e.g., by directly querying the certificate
-          * issuer.
-          */
-         printf ("OCSP status unknown, but OCSP was not required, so allow "
-                 "connection to continue");
-         break;
-      default:
-         printf ("Invalid OCSP certificate status");
-         return 0;
+      default:  /* V_OCSP_CERTSTATUS_UNKNOWN */
+         break; /* soft fail */
       }
    }
-   //  peer = SSL_get_peer_certificate (ssl);
-   //  if (!peer) {
-   //     MONGOC_ERROR ("Peer certificate not available for OCSP status check");
-   //     OCSP_BASICRESP_free (basic);
-   //     OCSP_RESPONSE_free (resp);
-   //     return 0;
-   //  }
 
-   //  issuer = sk_X509_value (cert_chain, 1); // TODO: find better way to do
-   //  this
-   //  if (!issuer) {
-   //     MONGOC_ERROR (
-   //        "Peer issuer certificate not available for OCSP status check");
-   //     OCSP_BASICRESP_free (basic);
-   //     OCSP_RESPONSE_free (resp);
-   //     return 0;
-   //  }
-
-   //  id = OCSP_cert_to_id (NULL /* SHA1 */, peer, issuer);
-   //  if (!id) {
-   //     MONGOC_ERROR ("Could not create OCSP certificate identifier (SHA1)");
-   //     OCSP_BASICRESP_free (basic);
-   //     OCSP_RESPONSE_free (resp);
-   //     return 0;
-   //  }
-
-   //   res = OCSP_resp_find_status (
-   //      basic, id, &status, &reason, &produced_at, &this_update,
-   //      &next_update);
-   //   if (!res) {
-   //      MONGOC_ERROR ("Could not find current server certificate");
-   //      OCSP_BASICRESP_free (basic);
-   //      OCSP_RESPONSE_free (resp);
-   //      return 0;
-   //   }
-
-   printf ("Ending callback...\n"); // TODO: for debugging only
-
-   OCSP_CERTID_free (id);
    OCSP_BASICRESP_free (basic);
    OCSP_RESPONSE_free (resp);
    return 1;
@@ -775,8 +676,7 @@ _mongoc_openssl_ctx_new (mongoc_ssl_opt_t *opt)
    SSL_CTX_set_cipher_list (ctx, "HIGH:!EXPORT:!aNULL@STRENGTH");
 #endif
 
-   /* If renegotiation is needed, don't return from recv() or send() until
-    * it's
+   /* If renegotiation is needed, don't return from recv() or send() until it's
     * successful.
     * Note: this is for blocking sockets only. */
    SSL_CTX_set_mode (ctx, SSL_MODE_AUTO_RETRY);
@@ -810,16 +710,14 @@ _mongoc_openssl_ctx_new (mongoc_ssl_opt_t *opt)
       return NULL;
    }
 
-#ifndef OPENSSL_NO_OCSP
-   printf ("Enabling OCSP...\n"); // TODO: debugging
-   /* Send Certificate Status Extension in client hello */
+#if (OPENSSL_VERSION_NUMBER >= 0x10100000L) && !defined(OPENSSL_NO_OCSP)
+   printf ("Enabling OCSP...\n");
    if (!SSL_CTX_set_tlsext_status_type (ctx, TLSEXT_STATUSTYPE_ocsp)) {
       MONGOC_ERROR ("Failed to enable OCSP with stapling");
       SSL_CTX_free (ctx);
       return NULL;
    }
-   SSL_CTX_set_tlsext_status_cb (ctx, _ocsp_tlsext_status_cb);
-// SSL_CTX_set_tlsext_status_arg (ctx, &debug);
+   SSL_CTX_set_tlsext_status_cb (ctx, ocsp_tlsext_status_cb);
 #endif
    return ctx;
 }
