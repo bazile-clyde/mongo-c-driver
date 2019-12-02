@@ -24,8 +24,9 @@
 #include <openssl/crypto.h>
 #include <openssl/err.h>
 
-/* OpenSSL 1.1.0+ */
-#if (OPENSSL_VERSION_NUMBER >= 0x10100000L) && !defined(OPENSSL_NO_OCSP)
+/* OpenSSL 1.0.0+ */
+#if (OPENSSL_VERSION_NUMBER >= 0x01000000L) && !defined(OPENSSL_NO_OCSP)
+#define ENABLE_OCSP
 #include <openssl/ocsp.h>
 #endif
 
@@ -516,6 +517,49 @@ ocsp_debug_print_resp (OCSP_RESPONSE *rsp)
 }
 // TODO: end debugging
 
+static OCSP_RESPONSE *
+process_responder (OCSP_REQUEST *req,
+                   const char *host,
+                   const char *path,
+                   const char *port,
+                   int use_ssl)
+{
+   BIO *cbio = NULL;
+   SSL_CTX *ctx = NULL;
+   OCSP_RESPONSE *resp = NULL;
+
+   cbio = BIO_new_connect (host);
+   if (cbio == NULL) {
+      MONGOC_ERROR ("Error creating connect BIO");
+      goto done;
+   }
+
+   if (port != NULL) {
+      BIO_set_conn_port (cbio, port);
+   }
+
+   if (use_ssl) {
+      BIO *sbio;
+      ctx = SSL_CTX_new (TLS_client_method ());
+      if (ctx == NULL) {
+         MONGOC_ERROR ("Error creating SSL context");
+         goto done;
+      }
+      SSL_CTX_set_mode (ctx, SSL_MODE_AUTO_RETRY);
+      sbio = BIO_new_ssl (ctx, 1);
+      cbio = BIO_push (sbio, cbio);
+   }
+
+   resp = query_responder (cbio, host, path, NULL, req, 300L);
+   if (resp == NULL) {
+      MONGOC_ERROR ("Error querying OCSP responder");
+   }
+
+done:
+   BIO_free_all (cbio);
+   SSL_CTX_free (ctx);
+   return resp;
+}
 static int
 contact_ocsp_responder (SSL *ssl)
 {
@@ -530,6 +574,7 @@ contact_ocsp_responder (SSL *ssl)
    STACK_OF (X509_EXTENSION) * exts;
    OCSP_REQUEST *req = NULL;
    OCSP_RESPONSE *resp = NULL;
+   X509 *issuer = NULL;
 
    peer = SSL_get_peer_certificate (ssl);
    aia = X509_get1_ocsp (peer);
@@ -550,7 +595,7 @@ contact_ocsp_responder (SSL *ssl)
 
    ctx = X509_STORE_CTX_new ();
    if (!ctx) {
-      MONGOC_ERROR ("Could not create store context");
+      MONGOC_ERROR ("Could not create X509 store");
       return -1;
    }
 
@@ -560,14 +605,16 @@ contact_ocsp_responder (SSL *ssl)
       return -1;
    }
 
-   obj = X509_STORE_CTX_get_obj_by_subject (
-      ctx, X509_LU_X509, X509_get_issuer_name (peer));
-   if (!obj) {
-      MONGOC_ERROR ("Could not retrieve issuer certificate");
-      return -1;
-   }
+   issuer = sk_X509_value (SSL_get0_verified_chain (ssl), 1);
+   // obj = X509_STORE_CTX_get_obj_by_subject (
+   //    ctx, X509_LU_X509, X509_get_issuer_name (peer));
+   // if (!obj) {
+   //    MONGOC_ERROR ("Could not retrieve X509 object from store");
+   //    return -1;
+   // }
 
-   id = OCSP_cert_to_id (NULL, peer, X509_OBJECT_get0_X509 (obj));
+   // id = OCSP_cert_to_id (NULL /* SHA1 */, peer, X509_OBJECT_get0_X509 (obj));
+   id = OCSP_cert_to_id (NULL /* SHA1 */, peer, issuer);
    if (!id) {
       MONGOC_ERROR ("Could not retrieve certificate ID from peer");
       return -1;
@@ -589,7 +636,12 @@ contact_ocsp_responder (SSL *ssl)
       }
    }
 
-   // process resp
+   resp = process_responder (req, host, path, port, use_ssl);
+   if (!resp) {
+      MONGOC_ERROR ("Error querying OCSP responder");
+      return -1;
+   }
+
    return 1;
 }
 #if (OPENSSL_VERSION_NUMBER >= 0x10100000L) && !defined(OPENSSL_NO_OCSP)
@@ -785,7 +837,7 @@ _mongoc_openssl_ctx_new (mongoc_ssl_opt_t *opt)
       return NULL;
    }
 
-#if (OPENSSL_VERSION_NUMBER >= 0x10100000L) && !defined(OPENSSL_NO_OCSP)
+#ifdef ENABLE_OCSP
    printf ("Enabling OCSP...\n");
    if (!SSL_CTX_set_tlsext_status_type (ctx, TLSEXT_STATUSTYPE_ocsp)) {
       MONGOC_ERROR ("Failed to enable OCSP with stapling");
