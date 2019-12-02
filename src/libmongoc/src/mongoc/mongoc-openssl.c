@@ -516,6 +516,82 @@ ocsp_debug_print_resp (OCSP_RESPONSE *rsp)
 }
 // TODO: end debugging
 
+static int
+contact_ocsp_responder (SSL *ssl)
+{
+   X509 *peer = NULL;
+   STACK_OF (OPENSSL_STRING) *aia = NULL;
+   char *host = NULL, *port = NULL, *path = NULL;
+   int use_ssl;
+   X509_STORE_CTX *ctx = NULL;
+   X509_OBJECT *obj = NULL;
+   OCSP_CERTID *id = NULL;
+   int ret = SSL_TLSEXT_ERR_NOACK;
+   STACK_OF (X509_EXTENSION) * exts;
+   OCSP_REQUEST *req = NULL;
+   OCSP_RESPONSE *resp = NULL;
+
+   peer = SSL_get_peer_certificate (ssl);
+   aia = X509_get1_ocsp (peer);
+
+   if (aia) {
+      if (!OCSP_parse_url (
+             sk_OPENSSL_STRING_value (aia, 0), &host, &port, &path, &use_ssl)) {
+         MONGOC_DEBUG ("Could not parse AIA URL");
+      }
+      debug_print_cert (peer, "Peer:");
+      printf ("Host: %s\n", host);
+      printf ("Port: %s\n", port);
+      printf ("Path: %s\n", path);
+   } else {
+      MONGOC_DEBUG ("No AIA and no default responder URL");
+      return 1; /* soft-fail */
+   }
+
+   ctx = X509_STORE_CTX_new ();
+   if (!ctx) {
+      MONGOC_ERROR ("Could not create store context");
+      return -1;
+   }
+
+   if (!X509_STORE_CTX_init (
+          ctx, SSL_CTX_get_cert_store (SSL_get_SSL_CTX (ssl)), NULL, NULL)) {
+      MONGOC_ERROR ("Could not initialize ssl context");
+      return -1;
+   }
+
+   obj = X509_STORE_CTX_get_obj_by_subject (
+      ctx, X509_LU_X509, X509_get_issuer_name (peer));
+   if (!obj) {
+      MONGOC_ERROR ("Could not retrieve issuer certificate");
+      return -1;
+   }
+
+   id = OCSP_cert_to_id (NULL, peer, X509_OBJECT_get0_X509 (obj));
+   if (!id) {
+      MONGOC_ERROR ("Could not retrieve certificate ID from peer");
+      return -1;
+   }
+
+   req = OCSP_REQUEST_new ();
+   if (!req) {
+      MONGOC_ERROR ("Could not create new OCSP request");
+      return -1;
+   }
+
+   /* Add any extensions to the request */
+   SSL_get_tlsext_status_exts (ssl, &exts);
+   for (int i = 0; i < sk_X509_EXTENSION_num (exts); i++) {
+      X509_EXTENSION *ext = sk_X509_EXTENSION_value (exts, i);
+      if (!OCSP_REQUEST_add_ext (req, ext, -1)) {
+         MONGOC_ERROR ("Failed to add X509 extension");
+         return -1;
+      }
+   }
+
+   // process resp
+   return 1;
+}
 #if (OPENSSL_VERSION_NUMBER >= 0x10100000L) && !defined(OPENSSL_NO_OCSP)
 /* This callback returns a negative value on error; 0 if the response is not
  * acceptable (in which case the handshake will fail) or a positive value if it
@@ -530,11 +606,10 @@ ocsp_tlsext_status_cb (SSL *ssl, void *arg)
    const unsigned char *r;
    int i, len, status;
 
-   printf ("GET_VERIFY_RESULT=%ld\n", SSL_get_verify_result (ssl));
    len = SSL_get_tlsext_status_ocsp_resp (ssl, &r);
    if (!r) {
-      MONGOC_ERROR ("No OCSP response received");
-      return 1;
+      MONGOC_DEBUG ("Server did not staple OCSP response");
+      return contact_ocsp_responder (ssl);
    }
 
    if (!d2i_OCSP_RESPONSE (&resp, &r, len)) {
