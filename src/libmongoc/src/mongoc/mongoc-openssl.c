@@ -516,7 +516,6 @@ ocsp_debug_print_resp (OCSP_RESPONSE *rsp)
    BIO_free (out);
 }
 // TODO: end debugging
-
 static OCSP_RESPONSE *
 process_responder (OCSP_REQUEST *req,
                    const char *host,
@@ -550,7 +549,7 @@ process_responder (OCSP_REQUEST *req,
       cbio = BIO_push (sbio, cbio);
    }
 
-   resp = query_responder (cbio, host, path, NULL, req, 300L);
+   //   resp = query_responder (cbio, host, path, NULL, req, 300L);
    if (resp == NULL) {
       MONGOC_ERROR ("Error querying OCSP responder");
    }
@@ -560,6 +559,7 @@ done:
    SSL_CTX_free (ctx);
    return resp;
 }
+
 static int
 contact_ocsp_responder (SSL *ssl)
 {
@@ -568,13 +568,13 @@ contact_ocsp_responder (SSL *ssl)
    char *host = NULL, *port = NULL, *path = NULL;
    int use_ssl;
    X509_STORE_CTX *ctx = NULL;
-   X509_OBJECT *obj = NULL;
    OCSP_CERTID *id = NULL;
    int ret = SSL_TLSEXT_ERR_NOACK;
    STACK_OF (X509_EXTENSION) * exts;
    OCSP_REQUEST *req = NULL;
    OCSP_RESPONSE *resp = NULL;
    X509 *issuer = NULL;
+   STACK_OF (X509) *sk = NULL;
 
    peer = SSL_get_peer_certificate (ssl);
    aia = X509_get1_ocsp (peer);
@@ -584,10 +584,10 @@ contact_ocsp_responder (SSL *ssl)
              sk_OPENSSL_STRING_value (aia, 0), &host, &port, &path, &use_ssl)) {
          MONGOC_DEBUG ("Could not parse AIA URL");
       }
-      debug_print_cert (peer, "Peer:");
-      printf ("Host: %s\n", host);
-      printf ("Port: %s\n", port);
-      printf ("Path: %s\n", path);
+      debug_print_cert (peer, "Peer:"); // TODO: remove
+      printf ("Host: %s\n", host);      // TODO: remove
+      printf ("Port: %s\n", port);      // TODO: remove
+      printf ("Path: %s\n", path);      // TODO: remove
    } else {
       MONGOC_DEBUG ("No AIA and no default responder URL");
       return 1; /* soft-fail */
@@ -605,15 +605,22 @@ contact_ocsp_responder (SSL *ssl)
       return -1;
    }
 
-   issuer = sk_X509_value (SSL_get0_verified_chain (ssl), 1);
-   // obj = X509_STORE_CTX_get_obj_by_subject (
-   //    ctx, X509_LU_X509, X509_get_issuer_name (peer));
-   // if (!obj) {
-   //    MONGOC_ERROR ("Could not retrieve X509 object from store");
-   //    return -1;
-   // }
+   /* get issuer cert */
+   sk = SSL_get_peer_cert_chain (ssl);
+   for (int i = 0; i < sk_X509_num (sk); i++) {
+      X509 *cand = sk_X509_value (sk, i);
+      if (0 == X509_NAME_cmp (X509_get_issuer_name (peer),
+                              X509_get_subject_name (cand))) {
+         issuer = sk_X509_value (sk, i);
+         break;
+      }
+   }
 
-   // id = OCSP_cert_to_id (NULL /* SHA1 */, peer, X509_OBJECT_get0_X509 (obj));
+   if (!issuer) {
+      MONGOC_ERROR ("Could not obtain peer issuer from cert chain");
+      return -1;
+   }
+
    id = OCSP_cert_to_id (NULL /* SHA1 */, peer, issuer);
    if (!id) {
       MONGOC_ERROR ("Could not retrieve certificate ID from peer");
