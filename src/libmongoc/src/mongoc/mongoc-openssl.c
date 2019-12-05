@@ -515,7 +515,19 @@ ocsp_debug_print_resp (OCSP_RESPONSE *rsp)
    }
    BIO_free (out);
 }
+
 // TODO: end debugging
+
+static OCSP_RESPONSE *
+query_responder (BIO *cbio,
+                 const char *host,
+                 const char *path,
+                 const char *port,
+                 OCSP_REQUEST *req,
+                 int timeout)
+{
+}
+
 static OCSP_RESPONSE *
 process_responder (OCSP_REQUEST *req,
                    const char *host,
@@ -528,28 +540,29 @@ process_responder (OCSP_REQUEST *req,
    OCSP_RESPONSE *resp = NULL;
 
    cbio = BIO_new_connect (host);
-   if (cbio == NULL) {
-      MONGOC_ERROR ("Error creating connect BIO");
+   if (!cbio) {
+      MONGOC_ERROR ("Error connection to host '%s'", host);
       goto done;
    }
 
-   if (port != NULL) {
+   if (port) {
       BIO_set_conn_port (cbio, port);
    }
 
    if (use_ssl) {
       BIO *sbio;
-      ctx = SSL_CTX_new (TLS_client_method ());
+      ctx = SSL_CTX_new (TLS_method ());
       if (ctx == NULL) {
          MONGOC_ERROR ("Error creating SSL context");
          goto done;
       }
+
       SSL_CTX_set_mode (ctx, SSL_MODE_AUTO_RETRY);
-      sbio = BIO_new_ssl (ctx, 1);
+      sbio = BIO_new_ssl (ctx, 1 /* use client mode */);
       cbio = BIO_push (sbio, cbio);
    }
 
-   //   resp = query_responder (cbio, host, path, NULL, req, 300L);
+   resp = query_responder (cbio, host, path, port, req, 300L);
    if (resp == NULL) {
       MONGOC_ERROR ("Error querying OCSP responder");
    }
@@ -732,6 +745,7 @@ ocsp_tlsext_status_cb (SSL *ssl, void *arg)
 
       switch (cert_status) {
       case V_OCSP_CERTSTATUS_GOOD:
+         /* TODO: cache response */
          break;
 
       case V_OCSP_CERTSTATUS_REVOKED:
