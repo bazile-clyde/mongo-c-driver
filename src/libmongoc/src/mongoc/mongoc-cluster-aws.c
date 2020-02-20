@@ -17,7 +17,6 @@
 /* All interaction with kms_message should be limited to this file. */
 
 #include "mongoc-cluster-aws-private.h"
-
 #include "mongoc-client-private.h"
 #include "mongoc-host-list-private.h"
 #include "mongoc-rand-private.h"
@@ -28,6 +27,14 @@
 
 #undef MONGOC_LOG_DOMAIN
 #define MONGOC_LOG_DOMAIN "aws_auth"
+
+#include <kms_message/kms_message.h>
+#include <openssl/bio.h>
+#include <openssl/buffer.h>
+#include <openssl/evp.h>
+#include <openssl/sha.h>
+#include <string.h>
+#include <common-b64-private.h>
 
 #define AUTH_ERROR_AND_FAIL(...)                     \
    bson_set_error (error,                            \
@@ -732,7 +739,7 @@ _client_first (mongoc_cluster_t *cluster,
          "server reply nonce prefix did not match client nonce");
    }
 
-   memcpy (server_nonce, reply_nonce_data + 32, 32);
+   memcpy (server_nonce, reply_nonce_data, 64);
 
    ret = true;
 fail:
@@ -743,6 +750,7 @@ fail:
    return ret;
 }
 
+#define AMZ_DT_FORMAT "YYYYmmDDTHHMMSSZ"
 /* --------------------------------------------------------------------------
  * Step 2
  * --------------------------------------------------------------------------
@@ -769,18 +777,91 @@ _client_second (mongoc_cluster_t *cluster,
                 int conv_id,
                 bson_error_t *error)
 {
-   bool ret = false;
+    bool ret = false;
+    kms_request_t *request;
+    const struct tm *tm = NULL;
+    char *signature = NULL;
+    const char *date = NULL;
+    const size_t server_nonce_str_len = bson_b64_ntop_calculate_target_size(64);
+    char server_nonce_str[server_nonce_str_len];
+    bson_t client_payload = BSON_INITIALIZER;
+    bson_t client_command = BSON_INITIALIZER;
+    bson_t server_payload = BSON_INITIALIZER;
+    bson_t server_reply = BSON_INITIALIZER;
 
-   BSON_ASSERT (cluster);
-   BSON_ASSERT (stream);
-   BSON_ASSERT (sd);
-   BSON_ASSERT (creds);
-   BSON_ASSERT (server_nonce);
-   BSON_ASSERT (sts_fqdn);
-   BSON_ASSERT (conv_id);
-   AUTH_ERROR_AND_FAIL ("TODO - step 2 not implemented yet");
-fail:
-   return ret;
+    char *access_key_id = "tempuser";
+    char *secret_access_key = "fakefakefakefakefakeFAKEFAKEFAKEFAKEFAKE";
+    char *session_token = "FAKETEMPORARYSESSIONTOKENfaketemporarysessiontoken";
+
+    BSON_ASSERT (cluster);
+    BSON_ASSERT (stream);
+    BSON_ASSERT (sd);
+    BSON_ASSERT (creds);
+    BSON_ASSERT (server_nonce);
+    BSON_ASSERT (sts_fqdn);
+    BSON_ASSERT (conv_id);
+
+    request = kms_request_new ("POST", "/", NULL);
+
+    kms_request_set_access_key_id (request, access_key_id);
+    kms_request_set_secret_key (request, secret_access_key);
+
+    if (!kms_request_set_date (request, tm)) {
+        MONGOC_ERROR("Failed to set date");
+        goto fail;
+    }
+    if (-1 == bson_b64_ntop (server_nonce, 64, server_nonce_str, server_nonce_str_len)) {
+        MONGOC_ERROR("Failed to parse server nonce");
+        goto fail;
+    }
+    printf("0.Server nonce: %s\n", server_nonce_str);
+
+    kms_request_set_region (request, "us-east-1");
+    kms_request_set_service (request, "sts");
+
+    kms_request_append_payload (request, "Action=GetCallerIdentity&Version=2011-06-15", -1);
+    kms_request_add_header_field(request, "Content-Type", "application/x-www-form-urlencoded");
+    kms_request_add_header_field(request, "Content-Length", "43");
+    kms_request_add_header_field(request, "Host", sts_fqdn);
+    kms_request_add_header_field(request, "X-MongoDB-Server-Nonce", server_nonce_str);
+    kms_request_add_header_field(request, "X-MongoDB-GS2-CB-Flag", "n");
+
+    kms_request_add_header_field(request, "X-Amz-Security-Token", session_token);
+
+
+    signature = kms_request_get_signature (request);
+    date = kms_request_get_canonical_header(request, "X-Amz-Date");
+
+    BCON_APPEND (&client_payload,
+                 "a", BCON_UTF8 (signature),
+                 "d", BCON_UTF8 (date));
+    BCON_APPEND (&client_payload,
+                 "t", BCON_UTF8 (session_token));
+
+    BCON_APPEND (&client_command,
+                 "saslContinue", BCON_INT32 (1),
+                 "conversationId", BCON_INT32 (conv_id),
+                 "payload", BCON_BIN (BSON_SUBTYPE_BINARY,
+                           bson_get_data (&client_payload),
+                           client_payload.len));
+
+    printf("Signature: %s\n", kms_request_get_signed(request));
+    printf("Date: %s\n", date);
+    printf("Error: %s\n", kms_request_get_error (request));
+
+    bson_destroy (&server_reply);
+    if (!_run_command (
+            cluster, stream, sd, &client_command, &server_reply, error)) {
+        goto fail;
+    }
+
+    ret = true;
+    fail:
+    bson_destroy (&client_payload);
+    bson_destroy (&client_command);
+    bson_destroy (&server_reply);
+    bson_destroy (&server_payload);
+    return ret;
 }
 
 bool
@@ -790,7 +871,7 @@ _mongoc_cluster_auth_node_aws (mongoc_cluster_t *cluster,
                                bson_error_t *error)
 {
    bool ret = false;
-   uint8_t server_nonce[32];
+   uint8_t server_nonce[64];
    char *sts_fqdn = NULL;
    int conv_id = 0;
    _mongoc_aws_credentials_t creds = {0};
