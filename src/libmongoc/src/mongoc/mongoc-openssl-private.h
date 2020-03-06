@@ -42,6 +42,8 @@ void
 _mongoc_openssl_init (void);
 void
 _mongoc_openssl_cleanup (void);
+int
+_mongoc_ocsp_tlsext_status_cb (SSL *ssl, void *arg);
 
 
 BSON_END_DECLS

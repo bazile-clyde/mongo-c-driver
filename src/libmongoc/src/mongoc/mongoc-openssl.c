@@ -23,12 +23,7 @@
 #include <openssl/bio.h>
 #include <openssl/crypto.h>
 #include <openssl/err.h>
-
-/* OpenSSL 1.0.0+ */
-#if (OPENSSL_VERSION_NUMBER >= 0x01000000L) && !defined(OPENSSL_NO_OCSP)
-#define ENABLE_OCSP
 #include <openssl/ocsp.h>
-#endif
 
 #include <openssl/ssl.h>
 #include <openssl/x509v3.h>
@@ -458,238 +453,32 @@ _mongoc_openssl_setup_pem_file (SSL_CTX *ctx,
    return 1;
 }
 
-// TODO: start debugging
-static void
-debug_print_cert (X509 *cert, const char *title)
-{
-   BIO *out;
-   size_t rlen;
-   char *txt;
-   int res;
-
-   out = BIO_new (BIO_s_mem ());
-   if (!out)
-      return;
-
-   X509_print (out, cert);
-   rlen = BIO_ctrl_pending (out);
-   txt = bson_malloc (rlen + 1);
-   if (!txt) {
-      BIO_free (out);
-      return;
-   }
-
-   res = BIO_read (out, txt, rlen);
-   if (res > 0) {
-      txt[res] = '\0';
-      printf ("OpenSSL: %s\n%s", title, txt);
-   }
-   bson_free (txt);
-   BIO_free (out);
-}
-
-static void
-ocsp_debug_print_resp (OCSP_RESPONSE *rsp)
-{
-   BIO *out;
-   size_t rlen;
-   char *txt;
-   int res;
-
-   out = BIO_new (BIO_s_mem ());
-   if (!out) {
-      return;
-   }
-
-   OCSP_RESPONSE_print (out, rsp, 0);
-   rlen = BIO_ctrl_pending (out);
-   txt = bson_malloc (rlen + 1);
-   if (!txt) {
-      BIO_free (out);
-      return;
-   }
-   res = BIO_read (out, txt, rlen);
-   if (res > 0) {
-      txt[res] = '\0';
-      printf ("OpenSSL: OCSP Response\n%s", txt);
-   }
-   BIO_free (out);
-}
-
-// TODO: end debugging
-
-static OCSP_RESPONSE *
-query_responder (BIO *cbio,
-                 const char *host,
-                 const char *path,
-                 const char *port,
-                 OCSP_REQUEST *req,
-                 int timeout)
-{
-}
-
-static OCSP_RESPONSE *
-process_responder (OCSP_REQUEST *req,
-                   const char *host,
-                   const char *path,
-                   const char *port,
-                   int use_ssl)
-{
-   BIO *cbio = NULL;
-   SSL_CTX *ctx = NULL;
-   OCSP_RESPONSE *resp = NULL;
-
-   cbio = BIO_new_connect (host);
-   if (!cbio) {
-      MONGOC_ERROR ("Error connection to host '%s'", host);
-      goto done;
-   }
-
-   if (port) {
-      BIO_set_conn_port (cbio, port);
-   }
-
-   if (use_ssl) {
-      BIO *sbio;
-      ctx = SSL_CTX_new (TLS_method ());
-      if (ctx == NULL) {
-         MONGOC_ERROR ("Error creating SSL context");
-         goto done;
-      }
-
-      SSL_CTX_set_mode (ctx, SSL_MODE_AUTO_RETRY);
-      sbio = BIO_new_ssl (ctx, 1 /* use client mode */);
-      cbio = BIO_push (sbio, cbio);
-   }
-
-   resp = query_responder (cbio, host, path, port, req, 300L);
-   if (resp == NULL) {
-      MONGOC_ERROR ("Error querying OCSP responder");
-   }
-
-done:
-   BIO_free_all (cbio);
-   SSL_CTX_free (ctx);
-   return resp;
-}
-
-static int
-contact_ocsp_responder (SSL *ssl)
-{
-   X509 *peer = NULL;
-   STACK_OF (OPENSSL_STRING) *aia = NULL;
-   char *host = NULL, *port = NULL, *path = NULL;
-   int use_ssl;
-   X509_STORE_CTX *ctx = NULL;
-   OCSP_CERTID *id = NULL;
-   int ret = SSL_TLSEXT_ERR_NOACK;
-   STACK_OF (X509_EXTENSION) * exts;
-   OCSP_REQUEST *req = NULL;
-   OCSP_RESPONSE *resp = NULL;
-   X509 *issuer = NULL;
-   STACK_OF (X509) *sk = NULL;
-
-   peer = SSL_get_peer_certificate (ssl);
-   aia = X509_get1_ocsp (peer);
-
-   if (aia) {
-      if (!OCSP_parse_url (
-             sk_OPENSSL_STRING_value (aia, 0), &host, &port, &path, &use_ssl)) {
-         MONGOC_DEBUG ("Could not parse AIA URL");
-      }
-      debug_print_cert (peer, "Peer:"); // TODO: remove
-      printf ("Host: %s\n", host);      // TODO: remove
-      printf ("Port: %s\n", port);      // TODO: remove
-      printf ("Path: %s\n", path);      // TODO: remove
-   } else {
-      MONGOC_DEBUG ("No AIA and no default responder URL");
-      return 1; /* soft-fail */
-   }
-
-   ctx = X509_STORE_CTX_new ();
-   if (!ctx) {
-      MONGOC_ERROR ("Could not create X509 store");
-      return -1;
-   }
-
-   if (!X509_STORE_CTX_init (
-          ctx, SSL_CTX_get_cert_store (SSL_get_SSL_CTX (ssl)), NULL, NULL)) {
-      MONGOC_ERROR ("Could not initialize ssl context");
-      return -1;
-   }
-
-   /* get issuer cert */
-   sk = SSL_get_peer_cert_chain (ssl);
-   for (int i = 0; i < sk_X509_num (sk); i++) {
-      X509 *cand = sk_X509_value (sk, i);
-      if (0 == X509_NAME_cmp (X509_get_issuer_name (peer),
-                              X509_get_subject_name (cand))) {
-         issuer = sk_X509_value (sk, i);
-         break;
-      }
-   }
-
-   if (!issuer) {
-      MONGOC_ERROR ("Could not obtain peer issuer from cert chain");
-      return -1;
-   }
-
-   id = OCSP_cert_to_id (NULL /* SHA1 */, peer, issuer);
-   if (!id) {
-      MONGOC_ERROR ("Could not retrieve certificate ID from peer");
-      return -1;
-   }
-
-   req = OCSP_REQUEST_new ();
-   if (!req) {
-      MONGOC_ERROR ("Could not create new OCSP request");
-      return -1;
-   }
-
-   /* Add any extensions to the request */
-   SSL_get_tlsext_status_exts (ssl, &exts);
-   for (int i = 0; i < sk_X509_EXTENSION_num (exts); i++) {
-      X509_EXTENSION *ext = sk_X509_EXTENSION_value (exts, i);
-      if (!OCSP_REQUEST_add_ext (req, ext, -1)) {
-         MONGOC_ERROR ("Failed to add X509 extension");
-         return -1;
-      }
-   }
-
-   resp = process_responder (req, host, path, port, use_ssl);
-   if (!resp) {
-      MONGOC_ERROR ("Error querying OCSP responder");
-      return -1;
-   }
-
-   return 1;
-}
-#if (OPENSSL_VERSION_NUMBER >= 0x10100000L) && !defined(OPENSSL_NO_OCSP)
 /* This callback returns a negative value on error; 0 if the response is not
  * acceptable (in which case the handshake will fail) or a positive value if it
  * is acceptable. */
-static int
-ocsp_tlsext_status_cb (SSL *ssl, void *arg)
+int
+_mongoc_ocsp_tlsext_status_cb (SSL *ssl, void *arg)
 {
    OCSP_RESPONSE *resp = NULL;
    OCSP_BASICRESP *basic = NULL;
    X509_STORE *store = NULL;
+   X509_NAME *subject_name = NULL;
    STACK_OF (X509) *cert_chain = NULL;
    const unsigned char *r;
-   int i, len, status;
+   int i, len, status, ret = 0;
 
    len = SSL_get_tlsext_status_ocsp_resp (ssl, &r);
    if (!r) {
       MONGOC_DEBUG ("Server did not staple OCSP response");
-      return contact_ocsp_responder (ssl);
+      ret = 1; // TODO: contact OCSP responder
+      goto done;
    }
 
    if (!d2i_OCSP_RESPONSE (&resp, &r, len)) {
       MONGOC_ERROR ("Failed to parse OCSP response");
-      return -1;
+       ret = -1;
+       goto done;
    }
-
-   ocsp_debug_print_resp (resp); // TODO: for debugging only
 
    status = OCSP_response_status (resp);
    if (status != OCSP_RESPONSE_STATUS_SUCCESSFUL) {
@@ -697,30 +486,24 @@ ocsp_tlsext_status_cb (SSL *ssl, void *arg)
                     status,
                     OCSP_response_status_str (status));
       OCSP_RESPONSE_free (resp);
-      return -1;
+       ret = -1;
+       goto done;
    }
 
    basic = OCSP_response_get1_basic (resp);
    if (!basic) {
       MONGOC_ERROR ("Could not find BasicOCSPResponse");
-      OCSP_BASICRESP_free (basic);
-      OCSP_RESPONSE_free (resp);
-      return -1;
+      ret = -1;
+      goto done;
    }
 
    store = SSL_CTX_get_cert_store (SSL_get_SSL_CTX (ssl));
    cert_chain = SSL_get0_verified_chain (ssl);
 
-   debug_print_cert (sk_X509_value (cert_chain, 1),
-                     "CERT: "); // TODO: for debugging only
-
    if (1 != OCSP_basic_verify (basic, cert_chain, store, 0)) {
       MONGOC_ERROR ("OCSP response failed verification");
-      OCSP_BASICRESP_free (basic);
-      OCSP_RESPONSE_free (resp);
-      return 0;
+       goto done;
    }
-
 
    for (i = 0; i < OCSP_resp_count (basic); i++) {
       int cert_status, reason;
@@ -738,32 +521,33 @@ ocsp_tlsext_status_cb (SSL *ssl, void *arg)
 
       if (!OCSP_check_validity (this_update, next_update, 300L, -1L)) {
          MONGOC_ERROR ("OCSP response has expired");
-         OCSP_BASICRESP_free (basic);
-         OCSP_RESPONSE_free (resp);
-         return 0;
+         goto done;
       }
 
       switch (cert_status) {
       case V_OCSP_CERTSTATUS_GOOD:
          /* TODO: cache response */
-         break;
+         ret = 1;
+         goto done;
 
       case V_OCSP_CERTSTATUS_REVOKED:
          MONGOC_ERROR ("OCSP Certificate Status: Revoked. Reason %d", reason);
-         OCSP_BASICRESP_free (basic);
-         OCSP_RESPONSE_free (resp);
-         return 0;
+         goto done;
 
       default:  /* V_OCSP_CERTSTATUS_UNKNOWN */
-         break; /* soft fail */
+          ret = 1;
+          goto done; /* soft fail */
       }
    }
 
-   OCSP_BASICRESP_free (basic);
-   OCSP_RESPONSE_free (resp);
-   return 1;
+   subject_name = X509_get_subject_name (SSL_get_peer_certificate (ssl));
+   printf("name: %s\n", subject_name);
+
+    done:
+   if (basic) OCSP_BASICRESP_free (basic);
+   if (resp) OCSP_RESPONSE_free (resp);
+   return ret;
 }
-#endif
 
 /**
  * _mongoc_openssl_ctx_new:
@@ -858,15 +642,6 @@ _mongoc_openssl_ctx_new (mongoc_ssl_opt_t *opt)
       return NULL;
    }
 
-#ifdef ENABLE_OCSP
-   printf ("Enabling OCSP...\n");
-   if (!SSL_CTX_set_tlsext_status_type (ctx, TLSEXT_STATUSTYPE_ocsp)) {
-      MONGOC_ERROR ("Failed to enable OCSP with stapling");
-      SSL_CTX_free (ctx);
-      return NULL;
-   }
-   SSL_CTX_set_tlsext_status_cb (ctx, ocsp_tlsext_status_cb);
-#endif
    return ctx;
 }
 
@@ -999,3 +774,4 @@ _mongoc_openssl_thread_cleanup (void)
 #endif
 
 #endif
+
