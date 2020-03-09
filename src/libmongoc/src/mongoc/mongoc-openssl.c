@@ -21,12 +21,11 @@
 #include <bson/bson.h>
 #include <limits.h>
 #include <openssl/bio.h>
-#include <openssl/crypto.h>
+#include <openssl/ssl.h>
 #include <openssl/err.h>
 #include <openssl/ocsp.h>
-
-#include <openssl/ssl.h>
 #include <openssl/x509v3.h>
+#include <openssl/crypto.h>
 
 #include <string.h>
 
@@ -179,217 +178,6 @@ _mongoc_openssl_import_cert_stores (SSL_CTX *context)
 }
 #endif
 
-/** mongoc_openssl_hostcheck
- *
- * rfc 6125 match a given hostname against a given pattern
- *
- * Patterns come from DNS common names or subjectAltNames.
- *
- * This code is meant to implement RFC 6125 6.4.[1-3]
- *
- */
-static bool
-_mongoc_openssl_hostcheck (const char *pattern, const char *hostname)
-{
-   const char *pattern_label_end;
-   const char *pattern_wildcard;
-   const char *hostname_label_end;
-   size_t prefixlen;
-   size_t suffixlen;
-
-   TRACE ("Comparing '%s' == '%s'", pattern, hostname);
-   pattern_wildcard = strchr (pattern, '*');
-
-   if (pattern_wildcard == NULL) {
-      return strcasecmp (pattern, hostname) == 0;
-   }
-
-   pattern_label_end = strchr (pattern, '.');
-
-   /* Bail out on wildcarding in a couple of situations:
-    * o we don't have 2 dots - we're not going to wildcard root tlds
-    * o the wildcard isn't in the left most group (separated by dots)
-    * o the pattern is embedded in an A-label or U-label
-    */
-   if (pattern_label_end == NULL ||
-       strchr (pattern_label_end + 1, '.') == NULL ||
-       pattern_wildcard > pattern_label_end ||
-       strncasecmp (pattern, "xn--", 4) == 0) {
-      return strcasecmp (pattern, hostname) == 0;
-   }
-
-   hostname_label_end = strchr (hostname, '.');
-
-   /* we know we have a dot in the pattern, we need one in the hostname */
-   if (hostname_label_end == NULL ||
-       strcasecmp (pattern_label_end, hostname_label_end)) {
-      return 0;
-   }
-
-   /* The wildcard must match at least one character, so the left part of the
-    * hostname is at least as large as the left part of the pattern. */
-   if ((hostname_label_end - hostname) < (pattern_label_end - pattern)) {
-      return 0;
-   }
-
-   /* If the left prefix group before the star matches and right of the star
-    * matches... we have a wildcard match */
-   prefixlen = pattern_wildcard - pattern;
-   suffixlen = pattern_label_end - (pattern_wildcard + 1);
-   return strncasecmp (pattern, hostname, prefixlen) == 0 &&
-          strncasecmp (pattern_wildcard + 1,
-                       hostname_label_end - suffixlen,
-                       suffixlen) == 0;
-}
-
-
-/** check if a provided cert matches a passed hostname
- */
-bool
-_mongoc_openssl_check_cert (SSL *ssl,
-                            const char *host,
-                            bool allow_invalid_hostname)
-{
-   X509 *peer;
-   X509_NAME *subject_name;
-   X509_NAME_ENTRY *entry;
-   ASN1_STRING *entry_data;
-   int length;
-   int idx;
-   int r = 0;
-   long verify_status;
-
-   size_t addrlen = 0;
-   unsigned char addr4[sizeof (struct in_addr)];
-   unsigned char addr6[sizeof (struct in6_addr)];
-   int i;
-   int n_sans = -1;
-   int target = GEN_DNS;
-
-   STACK_OF (GENERAL_NAME) *sans = NULL;
-
-   ENTRY;
-   BSON_ASSERT (ssl);
-   BSON_ASSERT (host);
-
-   if (allow_invalid_hostname) {
-      RETURN (true);
-   }
-
-   /** if the host looks like an IP address, match that, otherwise we assume we
-    * have a DNS name */
-   if (inet_pton (AF_INET, host, &addr4)) {
-      target = GEN_IPADD;
-      addrlen = sizeof addr4;
-   } else if (inet_pton (AF_INET6, host, &addr6)) {
-      target = GEN_IPADD;
-      addrlen = sizeof addr6;
-   }
-
-   peer = SSL_get_peer_certificate (ssl);
-
-   if (!peer) {
-      MONGOC_WARNING ("SSL Certification verification failed: %s",
-                      ERR_error_string (ERR_get_error (), NULL));
-      RETURN (false);
-   }
-
-   verify_status = SSL_get_verify_result (ssl);
-
-   if (verify_status == X509_V_OK) {
-      /* gets a stack of alt names that we can iterate through */
-      sans = (STACK_OF (GENERAL_NAME) *) X509_get_ext_d2i (
-         (X509 *) peer, NID_subject_alt_name, NULL, NULL);
-
-      if (sans) {
-         n_sans = sk_GENERAL_NAME_num (sans);
-
-         /* loop through the stack, or until we find a match */
-         for (i = 0; i < n_sans && !r; i++) {
-            const GENERAL_NAME *name = sk_GENERAL_NAME_value (sans, i);
-
-            /* skip entries that can't apply, I.e. IP entries if we've got a
-             * DNS host */
-            if (name->type == target) {
-               const char *check;
-
-               check = (const char *) ASN1_STRING_get0_data (name->d.ia5);
-               length = ASN1_STRING_length (name->d.ia5);
-
-               switch (target) {
-               case GEN_DNS:
-
-                  /* check that we don't have an embedded null byte */
-                  if ((length == bson_strnlen (check, length)) &&
-                      _mongoc_openssl_hostcheck (check, host)) {
-                     r = 1;
-                  }
-
-                  break;
-               case GEN_IPADD:
-                  if (length == addrlen) {
-                     if (length == sizeof addr6 &&
-                         !memcmp (check, &addr6, length)) {
-                        r = 1;
-                     } else if (length == sizeof addr4 &&
-                                !memcmp (check, &addr4, length)) {
-                        r = 1;
-                     }
-                  }
-
-                  break;
-               default:
-                  BSON_ASSERT (0);
-                  break;
-               }
-            }
-         }
-         GENERAL_NAMES_free (sans);
-      } else {
-         subject_name = X509_get_subject_name (peer);
-
-         if (subject_name) {
-            i = -1;
-
-            /* skip to the last common name */
-            while ((idx = X509_NAME_get_index_by_NID (
-                       subject_name, NID_commonName, i)) >= 0) {
-               i = idx;
-            }
-
-            if (i >= 0) {
-               entry = X509_NAME_get_entry (subject_name, i);
-               entry_data = X509_NAME_ENTRY_get_data (entry);
-
-               if (entry_data) {
-                  char *check;
-
-                  /* TODO: I've heard tell that old versions of SSL crap out
-                   * when calling ASN1_STRING_to_UTF8 on already utf8 data.
-                   * Check up on that */
-                  length = ASN1_STRING_to_UTF8 ((unsigned char **) &check,
-                                                entry_data);
-
-                  if (length >= 0) {
-                     /* check for embedded nulls */
-                     if ((length == bson_strnlen (check, length)) &&
-                         _mongoc_openssl_hostcheck (check, host)) {
-                        r = 1;
-                     }
-
-                     OPENSSL_free (check);
-                  }
-               }
-            }
-         }
-      }
-   }
-
-   X509_free (peer);
-   RETURN (r);
-}
-
-
 static bool
 _mongoc_openssl_setup_ca (SSL_CTX *ctx, const char *cert, const char *cert_dir)
 {
@@ -453,31 +241,32 @@ _mongoc_openssl_setup_pem_file (SSL_CTX *ctx,
    return 1;
 }
 
-/* This callback returns a negative value on error; 0 if the response is not
- * acceptable (in which case the handshake will fail) or a positive value if it
- * is acceptable. */
 int
 _mongoc_ocsp_tlsext_status_cb (SSL *ssl, void *arg)
 {
+   const int ERROR = -1, FAILURE = 0, SUCCESS = 1;
    OCSP_RESPONSE *resp = NULL;
    OCSP_BASICRESP *basic = NULL;
    X509_STORE *store = NULL;
-   X509_NAME *subject_name = NULL;
+   X509 *peer = NULL;
    STACK_OF (X509) *cert_chain = NULL;
    const unsigned char *r;
-   int i, len, status, ret = 0;
+   int i, len, status, ret;
+   const char *host = ((mongoc_openssl_host_opt_t *) arg)->host;
+   bool allow_invalid_hostname =
+      ((mongoc_openssl_host_opt_t *) arg)->allow_invalid_hostname;
 
    len = SSL_get_tlsext_status_ocsp_resp (ssl, &r);
    if (!r) {
       MONGOC_DEBUG ("Server did not staple OCSP response");
-      ret = 1; // TODO: contact OCSP responder
+      ret = SUCCESS; // TODO: contact OCSP responder
       goto done;
    }
 
    if (!d2i_OCSP_RESPONSE (&resp, &r, len)) {
       MONGOC_ERROR ("Failed to parse OCSP response");
-       ret = -1;
-       goto done;
+      ret = ERROR;
+      goto done;
    }
 
    status = OCSP_response_status (resp);
@@ -486,14 +275,14 @@ _mongoc_ocsp_tlsext_status_cb (SSL *ssl, void *arg)
                     status,
                     OCSP_response_status_str (status));
       OCSP_RESPONSE_free (resp);
-       ret = -1;
-       goto done;
+      ret = ERROR;
+      goto done;
    }
 
    basic = OCSP_response_get1_basic (resp);
    if (!basic) {
       MONGOC_ERROR ("Could not find BasicOCSPResponse");
-      ret = -1;
+      ret = ERROR;
       goto done;
    }
 
@@ -502,7 +291,8 @@ _mongoc_ocsp_tlsext_status_cb (SSL *ssl, void *arg)
 
    if (1 != OCSP_basic_verify (basic, cert_chain, store, 0)) {
       MONGOC_ERROR ("OCSP response failed verification");
-       goto done;
+      ret = ERROR;
+      goto done;
    }
 
    for (i = 0; i < OCSP_resp_count (basic); i++) {
@@ -521,31 +311,42 @@ _mongoc_ocsp_tlsext_status_cb (SSL *ssl, void *arg)
 
       if (!OCSP_check_validity (this_update, next_update, 300L, -1L)) {
          MONGOC_ERROR ("OCSP response has expired");
+         ret = ERROR;
          goto done;
       }
 
       switch (cert_status) {
       case V_OCSP_CERTSTATUS_GOOD:
          /* TODO: cache response */
-         ret = 1;
+         ret = SUCCESS;
          goto done;
 
       case V_OCSP_CERTSTATUS_REVOKED:
          MONGOC_ERROR ("OCSP Certificate Status: Revoked. Reason %d", reason);
+         ret = FAILURE;
          goto done;
 
-      default:  /* V_OCSP_CERTSTATUS_UNKNOWN */
-          ret = 1;
-          goto done; /* soft fail */
+      default: /* V_OCSP_CERTSTATUS_UNKNOWN */
+         ret = SUCCESS;
+         goto done; /* soft fail */
       }
    }
 
-   subject_name = X509_get_subject_name (SSL_get_peer_certificate (ssl));
-   printf("name: %s\n", subject_name);
+   /* validate hostname iff allow_invalid_hostname == false */
+   peer = SSL_get_peer_certificate (ssl);
+   if (!allow_invalid_hostname &&
+       X509_check_host (peer, host, sizeof host, 0, NULL) !=
+          0 /* 0 == success */) {
+      ret = FAILURE;
+      goto done;
+   }
 
-    done:
-   if (basic) OCSP_BASICRESP_free (basic);
-   if (resp) OCSP_RESPONSE_free (resp);
+   ret = SUCCESS;
+done:
+   if (basic)
+      OCSP_BASICRESP_free (basic);
+   if (resp)
+      OCSP_RESPONSE_free (resp);
    return ret;
 }
 
@@ -590,7 +391,8 @@ _mongoc_openssl_ctx_new (mongoc_ssl_opt_t *opt)
    ssl_ctx_options |= SSL_OP_NO_COMPRESSION;
 #endif
 
-/* man SSL_get_options says: "SSL_OP_NO_RENEGOTIATION options were added in OpenSSL 1.1.1". */
+/* man SSL_get_options says: "SSL_OP_NO_RENEGOTIATION options were added in
+ * OpenSSL 1.1.1". */
 #ifdef SSL_OP_NO_RENEGOTIATION
    ssl_ctx_options |= SSL_OP_NO_RENEGOTIATION;
 #endif
@@ -774,4 +576,3 @@ _mongoc_openssl_thread_cleanup (void)
 #endif
 
 #endif
-

@@ -45,7 +45,6 @@
 
 #define MONGOC_STREAM_TLS_OPENSSL_BUFFER_SIZE 4096
 
-/* OpenSSL 1.0.0+ */
 #if OPENSSL_VERSION_NUMBER < 0x10100000L || \
    (defined(LIBRESSL_VERSION_NUMBER) && LIBRESSL_VERSION_NUMBER < 0x20700000L)
 static void
@@ -55,6 +54,7 @@ BIO_meth_free (BIO_METHOD *meth)
 }
 #endif
 
+/* OpenSSL 1.0.0+ */
 #if (OPENSSL_VERSION_NUMBER >= 0x01000000L) && !defined(OPENSSL_NO_OCSP)
 #define ENABLE_OCSP
 #endif
@@ -546,25 +546,28 @@ _mongoc_stream_tls_openssl_check_closed (mongoc_stream_t *stream) /* IN */
 /**
  * mongoc_stream_tls_openssl_handshake:
  */
-bool
+static bool
 _mongoc_stream_tls_openssl_handshake (mongoc_stream_t *stream,
-                                     const char *host,
-                                     int *events,
-                                     bson_error_t *error)
+                                      const char *host,
+                                      int *events,
+                                      bson_error_t *error)
 {
    mongoc_stream_tls_t *tls = (mongoc_stream_tls_t *) stream;
    mongoc_stream_tls_openssl_t *openssl =
       (mongoc_stream_tls_openssl_t *) tls->ctx;
    SSL *ssl;
+   X509 *peer;
 
    BSON_ASSERT (tls);
    BSON_ASSERT (host);
    ENTRY;
 
    BIO_get_ssl (openssl->bio, &ssl);
-    if (BIO_do_handshake (openssl->bio)== 1) {
-      if (_mongoc_openssl_check_cert (
-             ssl, host, tls->ssl_opts.allow_invalid_hostname)) {
+   if (BIO_do_handshake (openssl->bio) == 1) {
+      peer = SSL_get_peer_certificate (ssl);
+      if (tls->ssl_opts.allow_invalid_hostname ||
+          X509_check_host (peer, host, sizeof host, 0, NULL) ==
+             0 /* success */) {
          RETURN (true);
       }
 
@@ -683,12 +686,14 @@ mongoc_stream_tls_openssl_new (mongoc_stream_t *base_stream,
    BIO *bio_ssl = NULL;
    BIO *bio_mongoc_shim = NULL;
    BIO_METHOD *meth;
+   mongoc_openssl_host_opt_t *ocsp_cb_arg = NULL;
 
    BSON_ASSERT (base_stream);
    BSON_ASSERT (opt);
    ENTRY;
 
    ssl_ctx = _mongoc_openssl_ctx_new (opt);
+
    if (!ssl_ctx) {
       RETURN (NULL);
    }
@@ -718,28 +723,30 @@ mongoc_stream_tls_openssl_new (mongoc_stream_t *base_stream,
                                               _mongoc_stream_tls_openssl_sni);
    } else {
 #ifdef ENABLE_OCSP
-       if (!SSL_CTX_set_tlsext_status_type (ssl_ctx, TLSEXT_STATUSTYPE_ocsp)) {
-           MONGOC_ERROR ("Failed to enable OCSP with stapling");
-           SSL_CTX_free(ssl_ctx);
-           RETURN (NULL);
-       } else {
-           SSL_CTX_set_tlsext_status_cb (ssl_ctx, _mongoc_ocsp_tlsext_status_cb);
-       }
+      if (!SSL_CTX_set_tlsext_status_type (ssl_ctx, TLSEXT_STATUSTYPE_ocsp)) {
+         SSL_CTX_free (ssl_ctx);
+         RETURN (NULL);
+      }
+      ocsp_cb_arg = malloc (sizeof (mongoc_openssl_host_opt_t));
+      ocsp_cb_arg->allow_invalid_hostname = opt->allow_invalid_hostname;
+      ocsp_cb_arg->host = host;
+
+      SSL_CTX_set_tlsext_status_arg (ssl_ctx, ocsp_cb_arg);
+      SSL_CTX_set_tlsext_status_cb (ssl_ctx, _mongoc_ocsp_tlsext_status_cb);
 #endif
    }
 
-    if (opt->weak_cert_validation) {
-      SSL_CTX_set_verify (ssl_ctx, SSL_VERIFY_NONE, NULL);;
+   if (opt->weak_cert_validation) {
+      SSL_CTX_set_verify (ssl_ctx, SSL_VERIFY_NONE, NULL);
    } else {
       SSL_CTX_set_verify (ssl_ctx, SSL_VERIFY_PEER, NULL);
    }
 
-    bio_ssl = BIO_new_ssl (ssl_ctx, client);
-    if (!bio_ssl) {
-        SSL_CTX_free (ssl_ctx);
+   bio_ssl = BIO_new_ssl (ssl_ctx, client);
+   if (!bio_ssl) {
+      SSL_CTX_free (ssl_ctx);
       RETURN (NULL);
    }
-
    meth = mongoc_stream_tls_openssl_bio_meth_new ();
    bio_mongoc_shim = BIO_new (meth);
    if (!bio_mongoc_shim) {
@@ -757,6 +764,7 @@ mongoc_stream_tls_openssl_new (mongoc_stream_t *base_stream,
       SSL_set_tlsext_host_name (ssl, host);
 #endif
    }
+
 
    BIO_push (bio_ssl, bio_mongoc_shim);
 
