@@ -583,6 +583,22 @@ _mongoc_ocsp_tlsext_status_cb (SSL *ssl, void *arg)
       GOTO (done);
    }
 
+   /* TODO: If any unvalidated certificates in the chain remain and the client
+    * possesses an OCSP cache, the driver SHOULD attempt to validate the status
+    * of the unvalidated certificates using the cache. */
+
+   /* TODO: The key for this cache SHOULD be the certificate identifier (CertID)
+    * of the OCSP request */
+
+   /* TODO: a cached response SHOULD be considered valid up to and excluding the
+    * time specified in the response's nextUpdate field. In other words, if the
+    * current time is t, then the cache entry SHOULD be considered valid if
+    * thisUpdate ⩽ t < nextUpdate. */
+
+   /* TODO: If a driver would accept a stapled OCSP response and that response h
+    * s a later n Update than the response already in the cache, drivers SHOULD
+    * replace the o r entry in the cache with the fresher response. */
+
    /* Get a STACK_OF(X509) certs forming the cert chain of the peer, including
     * the peer's cert */
    if (!(cert_chain = SSL_get0_verified_chain (ssl))) {
@@ -698,6 +714,7 @@ _mongoc_ocsp_tlsext_status_cb (SSL *ssl, void *arg)
       MONGOC_ERROR ("OCSP Certificate Status: Revoked. Reason: %s",
                     OCSP_crl_reason_str (reason));
       ret = OCSP_CB_REVOKED;
+      /* TODO: cache response */
       GOTO (done);
 
    default:
