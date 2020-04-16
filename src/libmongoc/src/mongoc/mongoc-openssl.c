@@ -700,7 +700,7 @@ _mongoc_ocsp_tlsext_status_cb (SSL *ssl, void *arg)
    /* checks the validity of this_update and next_update values */
    if (!OCSP_check_validity (this_update, next_update, 0L, -1L)) {
       SOFT_FAIL ("OCSP response has expired: %s", ERR_STR);
-      ret = OCSP_CB_ERROR;
+      ret = OCSP_CB_REVOKED;
       GOTO (done);
    }
 

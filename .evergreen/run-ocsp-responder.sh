@@ -23,9 +23,11 @@
 #   Defaults to $(pwd)
 # SKIP_PIP_INSTALL
 #   Optional. Skip pip install for required packages for mock responder.
+# NEXT_UPDATE_SECONDS
+#   Optional. Specify how long the OCSP response should be valid for.
 #
 # Example:
-# TEST_COLUMN=TEST_1 CERT_TYPE=rsa ./run-ocsp-test.sh
+# TEST_COLUMN=TEST_1 CERT_TYPE=rsa ./run-ocsp-responder.sh
 #
 
 # Fail on any command returning a non-zero exit status.
@@ -103,11 +105,15 @@ if [ -n "$RESPONDER_REQUIRED" ]; then
     else
         RESPONDER_SIGNER="ca"
     fi
+    if [ -n "$NEXT_UPDATE_SECONDS" ]; then
+        NEXT_UPDATE_SECONDS="--next_update_seconds $NEXT_UPDATE_SECONDS"
+    fi
     $PYTHON ../ocsp_mock.py \
         --ca_file ca.pem \
         --ocsp_responder_cert $RESPONDER_SIGNER.crt \
         --ocsp_responder_key $RESPONDER_SIGNER.key \
         -p 8100 -v $FAULT \
+        $NEXT_UPDATE_SECONDS
         > $CDRIVER_BUILD/responder.log 2>&1 &
     cd -
 fi
