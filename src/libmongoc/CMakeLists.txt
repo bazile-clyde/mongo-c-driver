@@ -521,8 +521,9 @@ set (SOURCES ${SOURCES}
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-matcher-op.c
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-memcmp.c
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-cmd.c
-   ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-opts.c
+   ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-ocsp-cache.c
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-opts-helpers.c
+   ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-opts.c
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-queue.c
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-read-concern.c
    ${PROJECT_SOURCE_DIR}/src/mongoc/mongoc-read-prefs.c

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <mongoc/mongoc.h>
+#include "mongoc/mongoc.h"
 #include "mongoc/mongoc-uri-private.h"
 #include "mongoc/mongoc-host-list-private.h"
 
