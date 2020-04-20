@@ -19,13 +19,24 @@
 
 #include <openssl/ocsp.h>
 
-OCSP_RESPONSE *
-_mongoc_ocsp_cache_get_resp (OCSP_CERTID *id);
+typedef struct _cache_entry_list_t cache_entry_list_t;
+
+cache_entry_list_t *
+_mongoc_ocsp_get_cache_entry (OCSP_CERTID *id);
 
 void
 _mongoc_ocsp_cache_set_resp (OCSP_CERTID *id, OCSP_RESPONSE *resp);
 
 int
 _mongoc_ocsp_cache_length ();
+
+void
+_mongoc_ocsp_cache_find_status (cache_entry_list_t *entry,
+                                OCSP_CERTID **id,
+                                int *cert_status,
+                                int *reason,
+                                ASN1_GENERALIZEDTIME **produced_at,
+                                ASN1_GENERALIZEDTIME **this_update,
+                                ASN1_GENERALIZEDTIME **next_update);
 
 #endif /* MONGO_C_DRIVER_MONGOC_OCSP_CACHE_PRIVATE_H */

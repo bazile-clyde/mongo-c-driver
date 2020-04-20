@@ -20,29 +20,6 @@
 
 #include "TestSuite.h"
 
-static X509 *
-load_pem_file (const char *file_path)
-{
-   FILE *fp = NULL;
-   X509 *cert = NULL;
-
-   fp = fopen (file_path, "r");
-   if (!fp) {
-      MONGOC_ERROR ("unable to open: %s\n", file_path);
-      goto done;
-   }
-
-   cert = PEM_read_X509 (fp, NULL, NULL, NULL);
-   if (!cert) {
-      MONGOC_ERROR ("unable to parse certificate in: %s\n", file_path);
-   }
-
-done:
-   if (fp)
-      fclose (fp);
-   return cert;
-}
-
 static OCSP_CERTID *
 create_cert_id (long serial)
 {
@@ -64,31 +41,25 @@ static void
 test_mongoc_cache_upsert (void)
 {
    OCSP_CERTID *id;
-   OCSP_RESPONSE *expected;
-   OCSP_RESPONSE *actual;
+   cache_entry_list_t *expected;
+   cache_entry_list_t *actual;
+   OCSP_RESPONSE *resp;
    OCSP_BASICRESP *bs;
+   int status;
 
    BSON_ASSERT (_mongoc_ocsp_cache_length () == 0);
    id = create_cert_id (1234567890L);
 
    bs = OCSP_BASICRESP_new ();
-   expected = OCSP_response_create (OCSP_RESPONSE_STATUS_SUCCESSFUL, bs);
+   resp = OCSP_response_create (OCSP_RESPONSE_STATUS_SUCCESSFUL, bs);
 
-   _mongoc_ocsp_cache_set_resp (id, expected);
+   _mongoc_ocsp_cache_set_resp (id, resp);
    BSON_ASSERT (_mongoc_ocsp_cache_length () == 1);
 
-   actual = _mongoc_ocsp_cache_get_resp (id);
-   ASSERT (actual);
+   actual = _mongoc_ocsp_get_cache_entry (id);
+   BSON_ASSERT (actual);
 
-   ASSERT (OCSP_response_status (actual) == OCSP_response_status (expected));
-
-   id = create_cert_id(987654321L);
-   bs = OCSP_BASICRESP_new ();
-   expected = OCSP_response_create (OCSP_RESPONSE_STATUS_UNAUTHORIZED, bs);
-
-   _mongoc_ocsp_cache_set_resp (id, expected);
-   BSON_ASSERT (_mongoc_ocsp_cache_length () == 2);
-
+   // TODO: cmp set and get
 }
 
 void

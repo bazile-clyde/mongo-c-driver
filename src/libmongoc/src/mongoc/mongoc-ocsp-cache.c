@@ -18,12 +18,13 @@
 #include "utlist.h"
 #include <bson/bson.h>
 
-typedef struct _cache_entry_list_t cache_entry_list_t;
+
 
 struct _cache_entry_list_t {
    cache_entry_list_t *next;
    OCSP_CERTID *id;
-   OCSP_RESPONSE *resp;
+   int cert_status, reason;
+   ASN1_GENERALIZEDTIME *produced_at, *this_update, *next_update;
 };
 
 static cache_entry_list_t *cache = NULL;
@@ -36,8 +37,8 @@ cache_cmp (cache_entry_list_t *out, OCSP_CERTID *id)
    return OCSP_id_cmp (out->id, id);
 }
 
-static cache_entry_list_t *
-get_cache_entry (OCSP_CERTID *id)
+cache_entry_list_t *
+_mongoc_ocsp_get_cache_entry (OCSP_CERTID *id)
 {
    cache_entry_list_t *iter = NULL;
 
@@ -45,12 +46,29 @@ get_cache_entry (OCSP_CERTID *id)
    return iter;
 }
 
-OCSP_RESPONSE *
-_mongoc_ocsp_cache_get_resp (OCSP_CERTID *id)
+static void
+update_entry (cache_entry_list_t *entry, OCSP_RESPONSE *resp)
 {
-   cache_entry_list_t *iter;
+   OCSP_BASICRESP *basic;
+   int cert_status, reason;
+   ASN1_GENERALIZEDTIME *produced_at, *this_update, *next_update;
 
-   return (iter = get_cache_entry(id)) ? iter->resp : NULL;
+   basic = OCSP_response_get1_basic (resp);
+   OCSP_resp_find_status (basic,
+                          entry->id,
+                          &cert_status,
+                          &reason,
+                          &produced_at,
+                          &this_update,
+                          &next_update);
+
+   if (ASN1_TIME_compare (next_update, entry->next_update) == 1) {
+      entry->next_update = next_update;
+      entry->this_update = this_update;
+      entry->produced_at = produced_at;
+      entry->cert_status = cert_status;
+      entry->reason = reason;
+   }
 }
 
 void
@@ -58,20 +76,46 @@ _mongoc_ocsp_cache_set_resp (OCSP_CERTID *id, OCSP_RESPONSE *resp)
 {
    cache_entry_list_t *entry = NULL;
 
-   if (!(entry = get_cache_entry(id))) {
+   if (!(entry = _mongoc_ocsp_get_cache_entry (id))) {
       entry = bson_malloc0 (sizeof (cache_entry_list_t));
       entry->id = OCSP_CERTID_dup (id);
    }
 
-   entry->resp = resp; // TODO: memcpy ?
+   update_entry (entry, resp);
    LL_APPEND (cache, entry);
 }
 
 int
-_mongoc_ocsp_cache_length () {
+_mongoc_ocsp_cache_length ()
+{
    cache_entry_list_t *iter;
    int counter;
 
    LL_COUNT (cache, iter, counter);
    return counter;
+}
+
+void
+_mongoc_ocsp_cache_find_status (cache_entry_list_t *entry,
+                                OCSP_CERTID **id,
+                                int *cert_status,
+                                int *reason,
+                                ASN1_GENERALIZEDTIME **produced_at,
+                                ASN1_GENERALIZEDTIME **this_update,
+                                ASN1_GENERALIZEDTIME **next_update)
+{
+   BSON_ASSERT(entry);
+
+   if (id)
+      *id = entry->id;
+   if (cert_status)
+      *cert_status = entry->cert_status;
+   if (reason)
+      *reason = entry->reason;
+   if (produced_at)
+      *produced_at = entry->produced_at;
+   if (this_update)
+      *this_update = entry->this_update;
+   if (next_update)
+      *next_update = entry->next_update;
 }
