@@ -30,14 +30,14 @@ static cache_entry_list_t *cache = NULL;
 
 #define INIT(entry)                                           \
    do {                                                       \
-      if ((entry) == NULL)                                    \
+      if (!(entry))                                    \
          (entry) = bson_malloc0 (sizeof (cache_entry_list_t));\
    } while (0)
 
 static int
 cache_cmp (cache_entry_list_t *out, OCSP_CERTID *id)
 {
-   if (!out || !id)
+   if (!out || !out->id || !id)
       return 1;
    return OCSP_id_cmp (out->id, id);
 }
@@ -70,9 +70,13 @@ _mongoc_ocsp_cache_set_resp (OCSP_CERTID *id, OCSP_RESPONSE *resp)
 {
    cache_entry_list_t *entry = NULL;
 
-   INIT (entry);
-   entry->id = OCSP_CERTID_dup (id);
-   // TODO: memcpy
-   entry->resp = resp;
+   INIT (cache);
+   if (!(entry = get_cache_entry(id))) {
+      INIT (entry);
+      entry->id = OCSP_CERTID_dup (id);
+      // TODO: update and return
+   }
+
+   entry->resp = resp; // TODO: memcpy ?
    LL_APPEND (cache, entry);
 }
