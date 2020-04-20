@@ -33,7 +33,7 @@ static cache_entry_list_t *cache = NULL;
 static int
 cache_cmp (cache_entry_list_t *out, OCSP_CERTID *id)
 {
-   if (out == NULL || id == NULL)
+   if (!out || !id)
       return 1;
    return OCSP_id_cmp (out->id, id);
 }
@@ -43,13 +43,13 @@ _mongoc_ocsp_cache_get_resp (OCSP_CERTID *id)
 {
    cache_entry_list_t *iter = NULL;
 
-   if (cache != NULL) {
+   if (!cache) {
       CDL_SEARCH (cache, iter, id, cache_cmp);
    } else {
       INIT (cache);
    }
 
-   return iter == NULL ? NULL : iter->resp;
+   return !iter ? NULL : iter->resp;
 }
 
 void
