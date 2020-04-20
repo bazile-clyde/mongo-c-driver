@@ -27,7 +27,6 @@ struct _cache_entry_list_t {
 };
 
 static cache_entry_list_t *cache = NULL;
-static int size = 0;
 
 static int
 cache_cmp (cache_entry_list_t *out, OCSP_CERTID *id)
@@ -62,7 +61,6 @@ _mongoc_ocsp_cache_set_resp (OCSP_CERTID *id, OCSP_RESPONSE *resp)
    if (!(entry = get_cache_entry(id))) {
       entry = bson_malloc0 (sizeof (cache_entry_list_t));
       entry->id = OCSP_CERTID_dup (id);
-      size++;
    }
 
    entry->resp = resp; // TODO: memcpy ?
@@ -70,6 +68,10 @@ _mongoc_ocsp_cache_set_resp (OCSP_CERTID *id, OCSP_RESPONSE *resp)
 }
 
 int
-_mongoc_ocsp_cache_size () {
-  return size;
+_mongoc_ocsp_cache_length () {
+   cache_entry_list_t *iter;
+   int counter;
+
+   DL_COUNT (cache, iter, counter);
+   return counter;
 }
