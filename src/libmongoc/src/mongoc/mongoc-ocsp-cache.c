@@ -28,7 +28,11 @@ struct _cache_entry_list_t {
 
 static cache_entry_list_t *cache = NULL;
 
-#define INIT(entry) (entry) = bson_malloc0 (sizeof (cache_entry_list_t))
+#define INIT(entry)                                           \
+   do {                                                       \
+      if ((entry) == NULL)                                    \
+         (entry) = bson_malloc0 (sizeof (cache_entry_list_t));\
+   } while (0)
 
 static int
 cache_cmp (cache_entry_list_t *out, OCSP_CERTID *id)
@@ -38,28 +42,37 @@ cache_cmp (cache_entry_list_t *out, OCSP_CERTID *id)
    return OCSP_id_cmp (out->id, id);
 }
 
-OCSP_RESPONSE *
-_mongoc_ocsp_cache_get_resp (OCSP_CERTID *id)
+static cache_entry_list_t *
+get_cache_entry (OCSP_CERTID *id)
 {
    cache_entry_list_t *iter = NULL;
 
-   if (cache) {
-      CDL_SEARCH (cache, iter, id, cache_cmp);
-   } else {
-      INIT (cache);
+   INIT (cache);
+   CDL_SEARCH (cache, iter, id, cache_cmp);
+
+   return iter;
+}
+
+OCSP_RESPONSE *
+_mongoc_ocsp_cache_get_resp (OCSP_CERTID *id)
+{
+   cache_entry_list_t *iter;
+
+   if ((iter = get_cache_entry(id))) {
+      return iter->resp;
    }
 
-   return !iter ? NULL : iter->resp;
+   return NULL;
 }
 
 void
 _mongoc_ocsp_cache_set_resp (OCSP_CERTID *id, OCSP_RESPONSE *resp)
 {
-   cache_entry_list_t *entry;
-   INIT (entry);
+   cache_entry_list_t *entry = NULL;
 
+   INIT (entry);
    entry->id = OCSP_CERTID_dup (id);
    // TODO: memcpy
    entry->resp = resp;
-   LL_APPEND(cache, entry);
+   LL_APPEND (cache, entry);
 }
