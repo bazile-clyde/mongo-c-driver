@@ -43,34 +43,48 @@ done:
    return cert;
 }
 
+static OCSP_CERTID *
+create_cert_id (long serial)
+{
+   OCSP_CERTID *id;
+   X509_NAME *issuerName;
+   ASN1_BIT_STRING *issuerKey;
+   ASN1_INTEGER *serialNumber;
+
+   issuerName = X509_NAME_new ();
+   issuerKey = ASN1_BIT_STRING_new ();
+   serialNumber = ASN1_INTEGER_new ();
+   ASN1_INTEGER_set (serialNumber, serial);
+
+   id = OCSP_cert_id_new (EVP_sha1 (), issuerName, issuerKey, serialNumber);
+   return id;
+}
+
 static void
-test_mongoc_cache (void) {
+test_mongoc_cache (void)
+{
    OCSP_CERTID *id;
    OCSP_RESPONSE *expected;
    OCSP_RESPONSE *actual;
-   X509 *peer;
-   X509 *issuer;
    OCSP_BASICRESP *bs;
 
-   peer = load_pem_file(CERT_SERVER);
-   issuer = load_pem_file(CERT_CA);
+   BSON_ASSERT (_mongoc_ocsp_cache_size () == 0);
+   id = create_cert_id (111);
 
-   id = OCSP_cert_to_id (NULL /* SHA1 */, peer, issuer);
-
-   bs = OCSP_BASICRESP_new();
-   expected = OCSP_response_create(OCSP_RESPONSE_STATUS_SUCCESSFUL, bs);
+   bs = OCSP_BASICRESP_new ();
+   expected = OCSP_response_create (OCSP_RESPONSE_STATUS_SUCCESSFUL, bs);
 
    _mongoc_ocsp_cache_set_resp (id, expected);
-   actual = _mongoc_ocsp_cache_get_resp (id);
+   BSON_ASSERT (_mongoc_ocsp_cache_size () == 1);
 
-   ASSERT(actual);
-   ASSERT (OCSP_response_status(actual) == OCSP_response_status(expected));
+   actual = _mongoc_ocsp_cache_get_resp (id);
+   ASSERT (actual);
+
+   ASSERT (OCSP_response_status (actual) == OCSP_response_status (expected));
 }
 
 void
 test_ocsp_cache_install (TestSuite *suite)
 {
-   TestSuite_Add (suite,
-                  "/ocsp_cache/test_mongoc_cache",
-                  test_mongoc_cache);
+   TestSuite_Add (suite, "/ocsp_cache/test_mongoc_cache", test_mongoc_cache);
 }

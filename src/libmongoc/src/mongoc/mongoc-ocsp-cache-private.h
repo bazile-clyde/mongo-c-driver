@@ -25,4 +25,7 @@ _mongoc_ocsp_cache_get_resp (OCSP_CERTID *id);
 void
 _mongoc_ocsp_cache_set_resp (OCSP_CERTID *id, OCSP_RESPONSE *resp);
 
+int
+_mongoc_ocsp_cache_size ();
+
 #endif /* MONGO_C_DRIVER_MONGOC_OCSP_CACHE_PRIVATE_H */

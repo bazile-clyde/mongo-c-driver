@@ -27,12 +27,7 @@ struct _cache_entry_list_t {
 };
 
 static cache_entry_list_t *cache = NULL;
-
-#define INIT(entry)                                           \
-   do {                                                       \
-      if (!(entry))                                    \
-         (entry) = bson_malloc0 (sizeof (cache_entry_list_t));\
-   } while (0)
+static int size = 0;
 
 static int
 cache_cmp (cache_entry_list_t *out, OCSP_CERTID *id)
@@ -47,9 +42,7 @@ get_cache_entry (OCSP_CERTID *id)
 {
    cache_entry_list_t *iter = NULL;
 
-   INIT (cache);
    CDL_SEARCH (cache, iter, id, cache_cmp);
-
    return iter;
 }
 
@@ -58,11 +51,7 @@ _mongoc_ocsp_cache_get_resp (OCSP_CERTID *id)
 {
    cache_entry_list_t *iter;
 
-   if ((iter = get_cache_entry(id))) {
-      return iter->resp;
-   }
-
-   return NULL;
+   return (iter = get_cache_entry(id)) ? iter->resp : NULL;
 }
 
 void
@@ -70,13 +59,17 @@ _mongoc_ocsp_cache_set_resp (OCSP_CERTID *id, OCSP_RESPONSE *resp)
 {
    cache_entry_list_t *entry = NULL;
 
-   INIT (cache);
    if (!(entry = get_cache_entry(id))) {
-      INIT (entry);
+      entry = bson_malloc0 (sizeof (cache_entry_list_t));
       entry->id = OCSP_CERTID_dup (id);
-      // TODO: update and return
+      size++;
    }
 
    entry->resp = resp; // TODO: memcpy ?
    LL_APPEND (cache, entry);
+}
+
+int
+_mongoc_ocsp_cache_size () {
+  return size;
 }
