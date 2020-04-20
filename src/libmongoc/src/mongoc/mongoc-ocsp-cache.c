@@ -43,7 +43,7 @@ _mongoc_ocsp_cache_get_resp (OCSP_CERTID *id)
 {
    cache_entry_list_t *iter = NULL;
 
-   if (!cache) {
+   if (cache) {
       CDL_SEARCH (cache, iter, id, cache_cmp);
    } else {
       INIT (cache);
