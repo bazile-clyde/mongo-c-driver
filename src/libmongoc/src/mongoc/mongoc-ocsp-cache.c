@@ -31,11 +31,11 @@ static cache_entry_list_t *cache = NULL;
 #define INIT(entry) (entry) = bson_malloc0 (sizeof (cache_entry_list_t))
 
 static int
-cache_cmp (cache_entry_list_t *out, cache_entry_list_t *elt)
+cache_cmp (cache_entry_list_t *out, OCSP_CERTID *id)
 {
-   if (out == NULL || elt == NULL)
+   if (out == NULL || id == NULL)
       return 1;
-   return OCSP_id_cmp (out->id, elt->id);
+   return OCSP_id_cmp (out->id, id);
 }
 
 OCSP_RESPONSE *
@@ -44,7 +44,7 @@ _mongoc_ocsp_cache_get_resp (OCSP_CERTID *id)
    cache_entry_list_t *iter = NULL;
 
    if (cache != NULL) {
-      CDL_SEARCH (cache, iter, iter, cache_cmp);
+      CDL_SEARCH (cache, iter, id, cache_cmp);
    } else {
       INIT (cache);
    }
