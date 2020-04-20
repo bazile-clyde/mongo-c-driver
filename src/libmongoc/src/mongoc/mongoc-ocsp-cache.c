@@ -41,7 +41,7 @@ get_cache_entry (OCSP_CERTID *id)
 {
    cache_entry_list_t *iter = NULL;
 
-   CDL_SEARCH (cache, iter, id, cache_cmp);
+   LL_SEARCH (cache, iter, id, cache_cmp);
    return iter;
 }
 
@@ -72,6 +72,6 @@ _mongoc_ocsp_cache_length () {
    cache_entry_list_t *iter;
    int counter;
 
-   DL_COUNT (cache, iter, counter);
+   LL_COUNT (cache, iter, counter);
    return counter;
 }
