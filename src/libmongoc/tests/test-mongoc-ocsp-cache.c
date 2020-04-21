@@ -40,25 +40,28 @@ create_cert_id (long serial)
 static void
 test_mongoc_cache_upsert (void)
 {
-   OCSP_CERTID *id;
-   cache_entry_list_t *expected;
-   cache_entry_list_t *actual;
+   OCSP_CERTID *expected;
+   OCSP_CERTID *actual;
+   cache_entry_list_t *entry;
    OCSP_RESPONSE *resp;
    OCSP_BASICRESP *bs;
    int status;
 
    BSON_ASSERT (_mongoc_ocsp_cache_length () == 0);
-   id = create_cert_id (1234567890L);
+   expected = create_cert_id (1234567890L);
 
    bs = OCSP_BASICRESP_new ();
    resp = OCSP_response_create (OCSP_RESPONSE_STATUS_SUCCESSFUL, bs);
 
-   _mongoc_ocsp_cache_set_resp (id, resp);
+   _mongoc_ocsp_cache_set_resp (expected, resp);
    BSON_ASSERT (_mongoc_ocsp_cache_length () == 1);
 
-   actual = _mongoc_ocsp_get_cache_entry (id);
-   BSON_ASSERT (actual);
+   entry = _mongoc_ocsp_get_cache_entry (expected);
+   BSON_ASSERT (entry);
 
+   _mongoc_ocsp_cache_find_status(entry, &actual, &status, NULL, NULL, NULL, NULL);
+   BSON_ASSERT(OCSP_id_cmp(actual, expected) == 0);
+   BSON_ASSERT(status == OCSP_RESPONSE_STATUS_SUCCESSFUL);
    // TODO: cmp set and get
 }
 
