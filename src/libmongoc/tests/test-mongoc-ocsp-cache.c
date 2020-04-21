@@ -55,6 +55,7 @@ test_mongoc_cache_insert (void)
 {
    int i, size = 5;
 
+   _mongoc_ocsp_cache_clear ();
    BSON_ASSERT (_mongoc_ocsp_cache_length () == 0);
 
    for (i = 0; i < size; i++) {
@@ -91,26 +92,30 @@ test_mongoc_cache_update (void)
    cache_entry_list_t *entry;
    int status;
 
+   _mongoc_ocsp_cache_clear ();
+   BSON_ASSERT (_mongoc_ocsp_cache_length () == 0);
+
    now = time (NULL);
    expected = ASN1_GENERALIZEDTIME_set (NULL, now);
 
    id = create_cert_id (1);
    cache_insert (id, OCSP_RESPONSE_STATUS_SUCCESSFUL, expected);
+   BSON_ASSERT (_mongoc_ocsp_cache_length () == 1);
 
    entry = _mongoc_ocsp_get_cache_entry (id);
    _mongoc_ocsp_cache_get_status (
-      entry, &id, &status, NULL, NULL, NULL, &actual);
+      entry, &id, NULL, NULL, NULL, NULL, &actual);
 
+   BSON_ASSERT (
+      ASN1_TIME_compare (actual, ASN1_GENERALIZEDTIME_set (NULL, now)) == 0);
    BSON_ASSERT (ASN1_TIME_compare (actual, expected) == 0);
 
-   //  /* should update for same cert ID with later next_update field */
-   //  expected_next_update = ASN1_GENERALIZEDTIME_set (NULL, time (NULL));
-   //  bs = OCSP_BASICRESP_new ();
-   //  OCSP_basic_add1_status (
-   //     bs, expected_id, 0, 0, NULL, NULL, expected_next_update);
-   //  resp = OCSP_response_create (OCSP_RESPONSE_STATUS_UNAUTHORIZED, bs);
+   later = time (NULL);
+   expected = ASN1_GENERALIZEDTIME_set (NULL, later);
 
-   //  _mongoc_ocsp_cache_set_resp (expected_id, resp);
+   cache_insert (id, OCSP_RESPONSE_STATUS_UNAUTHORIZED, expected);
+   BSON_ASSERT (_mongoc_ocsp_cache_length () == 1);
+
    //  BSON_ASSERT (_mongoc_ocsp_cache_length () == 1);
 }
 void

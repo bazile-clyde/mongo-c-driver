@@ -39,4 +39,7 @@ _mongoc_ocsp_cache_get_status (cache_entry_list_t *entry,
                                 ASN1_GENERALIZEDTIME **this_update,
                                 ASN1_GENERALIZEDTIME **next_update);
 
+void
+_mongoc_ocsp_cache_clear ();
+
 #endif /* MONGO_C_DRIVER_MONGOC_OCSP_CACHE_PRIVATE_H */

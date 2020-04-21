@@ -19,7 +19,6 @@
 #include <bson/bson.h>
 
 
-
 struct _cache_entry_list_t {
    cache_entry_list_t *next;
    OCSP_CERTID *id;
@@ -80,10 +79,10 @@ _mongoc_ocsp_cache_set_resp (OCSP_CERTID *id, OCSP_RESPONSE *resp)
    if (!(entry = _mongoc_ocsp_get_cache_entry (id))) {
       entry = bson_malloc0 (sizeof (cache_entry_list_t));
       entry->id = OCSP_CERTID_dup (id);
+      LL_APPEND (cache, entry);
    }
 
    update_entry (entry, resp);
-   LL_APPEND (cache, entry);
 }
 
 int
@@ -104,14 +103,14 @@ _mongoc_ocsp_cache_length ()
 
 void
 _mongoc_ocsp_cache_get_status (cache_entry_list_t *entry,
-                                OCSP_CERTID **id,
-                                int *cert_status,
-                                int *reason,
-                                ASN1_GENERALIZEDTIME **produced_at,
-                                ASN1_GENERALIZEDTIME **this_update,
-                                ASN1_GENERALIZEDTIME **next_update)
+                               OCSP_CERTID **id,
+                               int *cert_status,
+                               int *reason,
+                               ASN1_GENERALIZEDTIME **produced_at,
+                               ASN1_GENERALIZEDTIME **this_update,
+                               ASN1_GENERALIZEDTIME **next_update)
 {
-   BSON_ASSERT(entry);
+   BSON_ASSERT (entry);
 
    if (id)
       *id = entry->id;
@@ -125,4 +124,10 @@ _mongoc_ocsp_cache_get_status (cache_entry_list_t *entry,
       *this_update = entry->this_update;
    if (next_update)
       *next_update = entry->next_update;
+}
+
+void
+_mongoc_ocsp_cache_clear ()
+{
+   cache = NULL;
 }
