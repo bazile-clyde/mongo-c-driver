@@ -59,7 +59,7 @@ test_mongoc_cache_insert (void)
 
    for (i = 0; i < size; i++) {
       OCSP_CERTID *id = create_cert_id (i);
-      cache_insert(id, OCSP_RESPONSE_STATUS_SUCCESSFUL, NULL);
+      cache_insert (id, OCSP_RESPONSE_STATUS_SUCCESSFUL, NULL);
    }
 
    BSON_ASSERT (_mongoc_ocsp_cache_length () == size);
@@ -83,25 +83,35 @@ test_mongoc_cache_insert (void)
 static void
 test_mongoc_cache_update (void)
 {
-//    time_t now;
-//    time_t later;
-//    ASN1_GENERALIZEDTIME *next_update;
-//
-//    now = time (NULL);
-//    next_update = ASN1_GENERALIZEDTIME_set (NULL, now);
-//
-//    BSON_ASSERT (ASN1_TIME_compare (actual_next_update, expected_next_update) ==
-//                 0);
-//
-//    /* should update for same cert ID with later next_update field */
-//    expected_next_update = ASN1_GENERALIZEDTIME_set (NULL, time (NULL));
-//    bs = OCSP_BASICRESP_new ();
-//    OCSP_basic_add1_status (
-//       bs, expected_id, 0, 0, NULL, NULL, expected_next_update);
-//    resp = OCSP_response_create (OCSP_RESPONSE_STATUS_UNAUTHORIZED, bs);
-//
-//    _mongoc_ocsp_cache_set_resp (expected_id, resp);
-//    BSON_ASSERT (_mongoc_ocsp_cache_length () == 1);
+   time_t now;
+   time_t later;
+   ASN1_GENERALIZEDTIME *actual;
+   ASN1_GENERALIZEDTIME *expected;
+   OCSP_CERTID *id;
+   cache_entry_list_t *entry;
+   int status;
+
+   now = time (NULL);
+   expected = ASN1_GENERALIZEDTIME_set (NULL, now);
+
+   id = create_cert_id (1);
+   cache_insert (id, OCSP_RESPONSE_STATUS_SUCCESSFUL, expected);
+
+   entry = _mongoc_ocsp_get_cache_entry (id);
+   _mongoc_ocsp_cache_get_status (
+      entry, &id, &status, NULL, NULL, NULL, &actual);
+
+   BSON_ASSERT (ASN1_TIME_compare (actual, expected) == 0);
+
+   //  /* should update for same cert ID with later next_update field */
+   //  expected_next_update = ASN1_GENERALIZEDTIME_set (NULL, time (NULL));
+   //  bs = OCSP_BASICRESP_new ();
+   //  OCSP_basic_add1_status (
+   //     bs, expected_id, 0, 0, NULL, NULL, expected_next_update);
+   //  resp = OCSP_response_create (OCSP_RESPONSE_STATUS_UNAUTHORIZED, bs);
+
+   //  _mongoc_ocsp_cache_set_resp (expected_id, resp);
+   //  BSON_ASSERT (_mongoc_ocsp_cache_length () == 1);
 }
 void
 test_ocsp_cache_install (TestSuite *suite)
