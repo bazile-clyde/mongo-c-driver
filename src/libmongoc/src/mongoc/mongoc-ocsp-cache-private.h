@@ -31,7 +31,7 @@ int
 _mongoc_ocsp_cache_length ();
 
 void
-_mongoc_ocsp_cache_find_status (cache_entry_list_t *entry,
+_mongoc_ocsp_cache_get_status (cache_entry_list_t *entry,
                                 OCSP_CERTID **id,
                                 int *cert_status,
                                 int *reason,

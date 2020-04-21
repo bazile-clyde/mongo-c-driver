@@ -92,12 +92,18 @@ _mongoc_ocsp_cache_length ()
    cache_entry_list_t *iter;
    int counter;
 
-   LL_COUNT (cache, iter, counter);
+   // LL_COUNT (cache, iter, counter);
+   {
+      counter = 0;
+      for (iter = cache; iter; iter = (iter)->next) {
+         ++counter;
+      }
+   }
    return counter;
 }
 
 void
-_mongoc_ocsp_cache_find_status (cache_entry_list_t *entry,
+_mongoc_ocsp_cache_get_status (cache_entry_list_t *entry,
                                 OCSP_CERTID **id,
                                 int *cert_status,
                                 int *reason,
