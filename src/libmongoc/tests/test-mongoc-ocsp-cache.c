@@ -38,6 +38,19 @@ create_cert_id (long serial)
 }
 
 static void
+cache_insert (OCSP_CERTID *id, int status, ASN1_GENERALIZEDTIME *next_update)
+{
+   OCSP_RESPONSE *resp;
+   OCSP_BASICRESP *bs;
+
+   bs = OCSP_BASICRESP_new ();
+   OCSP_basic_add1_status (bs, id, 0, 0, NULL, NULL, next_update);
+   resp = OCSP_response_create (status, bs);
+
+   _mongoc_ocsp_cache_set_resp (id, resp);
+}
+
+static void
 test_mongoc_cache_insert (void)
 {
    int i, size = 5;
@@ -45,15 +58,8 @@ test_mongoc_cache_insert (void)
    BSON_ASSERT (_mongoc_ocsp_cache_length () == 0);
 
    for (i = 0; i < size; i++) {
-      OCSP_RESPONSE *resp;
       OCSP_CERTID *id = create_cert_id (i);
-      OCSP_BASICRESP *bs;
-
-      bs = OCSP_BASICRESP_new ();
-      OCSP_basic_add1_status (bs, id, 0, 0, NULL, NULL, NULL);
-      resp = OCSP_response_create (OCSP_RESPONSE_STATUS_SUCCESSFUL, bs);
-
-      _mongoc_ocsp_cache_set_resp (id, resp);
+      cache_insert(id, OCSP_RESPONSE_STATUS_SUCCESSFUL, NULL);
    }
 
    BSON_ASSERT (_mongoc_ocsp_cache_length () == size);
@@ -74,29 +80,32 @@ test_mongoc_cache_insert (void)
    }
 }
 
-// static void
-// test_mongoc_cache_update (void)
-// {
-//    time_t initial_time;
-//    ASN1_GENERALIZEDTIME *expected_next_update;
-//    ASN1_GENERALIZEDTIME *actual_next_update;
+static void
+test_mongoc_cache_update (void)
+{
+//    time_t now;
+//    time_t later;
+//    ASN1_GENERALIZEDTIME *next_update;
 //
-//    initial_time = time(NULL);
-//    expected_next_update = ASN1_GENERALIZEDTIME_set (NULL, initial_time);
+//    now = time (NULL);
+//    next_update = ASN1_GENERALIZEDTIME_set (NULL, now);
 //
-//    BSON_ASSERT(ASN1_TIME_compare(actual_next_update, expected_next_update) == 0);
+//    BSON_ASSERT (ASN1_TIME_compare (actual_next_update, expected_next_update) ==
+//                 0);
 //
 //    /* should update for same cert ID with later next_update field */
 //    expected_next_update = ASN1_GENERALIZEDTIME_set (NULL, time (NULL));
 //    bs = OCSP_BASICRESP_new ();
-//    OCSP_basic_add1_status (bs, expected_id, 0, 0, NULL, NULL, expected_next_update);
+//    OCSP_basic_add1_status (
+//       bs, expected_id, 0, 0, NULL, NULL, expected_next_update);
 //    resp = OCSP_response_create (OCSP_RESPONSE_STATUS_UNAUTHORIZED, bs);
 //
 //    _mongoc_ocsp_cache_set_resp (expected_id, resp);
 //    BSON_ASSERT (_mongoc_ocsp_cache_length () == 1);
-// }
+}
 void
 test_ocsp_cache_install (TestSuite *suite)
 {
-   TestSuite_Add (suite, "/ocsp_cache/upsert", test_mongoc_cache_insert);
+   TestSuite_Add (suite, "/ocsp_cache/insert", test_mongoc_cache_insert);
+   TestSuite_Add (suite, "/ocsp_cache/update", test_mongoc_cache_update);
 }
