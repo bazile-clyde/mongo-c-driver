@@ -63,6 +63,7 @@ update_entry (cache_entry_list_t *entry, OCSP_RESPONSE *resp)
                           &next_update);
 
    if (ASN1_TIME_compare (next_update, entry->next_update) == 1) {
+      // TODO: copy times
       entry->next_update = next_update;
       entry->this_update = this_update;
       entry->produced_at = produced_at;
