@@ -40,29 +40,36 @@ create_cert_id (long serial)
 static void
 test_mongoc_cache_upsert (void)
 {
-   OCSP_CERTID *expected;
-   OCSP_CERTID *actual;
+   OCSP_CERTID *expected_id;
+   OCSP_CERTID *actual_id;
    cache_entry_list_t *entry;
    OCSP_RESPONSE *resp;
    OCSP_BASICRESP *bs;
    int status;
+   time_t initial_time;
+   ASN1_GENERALIZEDTIME *expected_next_update;
+   ASN1_GENERALIZEDTIME *actual_next_update;
 
    BSON_ASSERT (_mongoc_ocsp_cache_length () == 0);
-   expected = create_cert_id (1234567890L);
+   expected_id = create_cert_id (1234567890L);
+
+   initial_time = time(NULL);
+   expected_next_update = ASN1_GENERALIZEDTIME_set (NULL, initial_time);
 
    bs = OCSP_BASICRESP_new ();
+   OCSP_basic_add1_status (bs, expected_id, 0, 0, NULL, NULL, expected_next_update);
    resp = OCSP_response_create (OCSP_RESPONSE_STATUS_SUCCESSFUL, bs);
 
-   _mongoc_ocsp_cache_set_resp (expected, resp);
+   _mongoc_ocsp_cache_set_resp (expected_id, resp);
    BSON_ASSERT (_mongoc_ocsp_cache_length () == 1);
 
-   entry = _mongoc_ocsp_get_cache_entry (expected);
+   entry = _mongoc_ocsp_get_cache_entry (expected_id);
    BSON_ASSERT (entry);
 
-   _mongoc_ocsp_cache_find_status(entry, &actual, &status, NULL, NULL, NULL, NULL);
-   BSON_ASSERT(OCSP_id_cmp(actual, expected) == 0);
+   _mongoc_ocsp_cache_find_status(entry, &actual_id, &status, NULL, NULL, NULL, &actual_next_update);
+   BSON_ASSERT(OCSP_id_cmp(actual_id, expected_id) == 0);
    BSON_ASSERT(status == OCSP_RESPONSE_STATUS_SUCCESSFUL);
-   // TODO: cmp set and get
+   BSON_ASSERT(ASN1_TIME_compare(actual_next_update, expected_next_update) == 0);
 }
 
 void
