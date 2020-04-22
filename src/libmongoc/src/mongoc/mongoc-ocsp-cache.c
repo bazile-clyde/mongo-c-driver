@@ -91,13 +91,7 @@ _mongoc_ocsp_cache_length ()
    cache_entry_list_t *iter;
    int counter;
 
-   // LL_COUNT (cache, iter, counter);
-   {
-      counter = 0;
-      for (iter = cache; iter; iter = (iter)->next) {
-         ++counter;
-      }
-   }
+   LL_COUNT (cache, iter, counter);
    return counter;
 }
 
