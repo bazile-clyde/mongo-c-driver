@@ -50,7 +50,7 @@ update_entry (cache_entry_list_t *entry, OCSP_RESPONSE *resp)
 {
    OCSP_BASICRESP *basic;
    int cert_status, reason;
-   ASN1_GENERALIZEDTIME *produced_at, *this_update, *next_update;
+   ASN1_GENERALIZEDTIME *produced_at = NULL, *this_update = NULL, *next_update = NULL;
 
    basic = OCSP_response_get1_basic (resp);
    OCSP_resp_find_status (basic,
@@ -61,11 +61,13 @@ update_entry (cache_entry_list_t *entry, OCSP_RESPONSE *resp)
                           &this_update,
                           &next_update);
 
-   if (ASN1_TIME_compare (next_update, entry->next_update) == 1) {
-      // TODO: copy times
-      entry->next_update = next_update;
-      entry->this_update = this_update;
-      entry->produced_at = produced_at;
+   if (next_update && ASN1_TIME_compare (next_update, entry->next_update) == 1) {
+      entry->next_update =
+         ASN1_item_dup (ASN1_ITEM_rptr (ASN1_TIME), next_update);
+      entry->this_update =
+         ASN1_item_dup (ASN1_ITEM_rptr (ASN1_TIME), this_update);
+      entry->produced_at =
+         ASN1_item_dup (ASN1_ITEM_rptr (ASN1_TIME), produced_at);
       entry->cert_status = cert_status;
       entry->reason = reason;
    }
@@ -123,5 +125,13 @@ _mongoc_ocsp_cache_get_status (cache_entry_list_t *entry,
 void
 _mongoc_ocsp_cache_clear ()
 {
-   cache = NULL;
+   cache_entry_list_t *iter = cache;
+
+   while (iter) {
+      cache_entry_list_t *temp;
+
+      temp = iter->next;
+      bson_free(iter);
+      iter = temp;
+   }
 }

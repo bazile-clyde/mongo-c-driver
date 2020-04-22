@@ -34,6 +34,9 @@ create_cert_id (long serial)
    ASN1_INTEGER_set (serial_number, serial);
 
    id = OCSP_cert_id_new (EVP_sha1 (), issuer_name, issuer_key, serial_number);
+
+   ASN1_BIT_STRING_free(issuer_key);
+   ASN1_INTEGER_free(serial_number);
    return id;
 }
 
@@ -61,13 +64,14 @@ test_mongoc_cache_insert (void)
    for (i = 0; i < size; i++) {
       OCSP_CERTID *id = create_cert_id (i);
       cache_insert (id, V_OCSP_CERTSTATUS_GOOD, NULL);
+      OCSP_CERTID_free(id);
    }
 
    BSON_ASSERT (_mongoc_ocsp_cache_length () == size);
 
    for (i = 0; i < size; i++) {
       cache_entry_list_t *entry;
-      OCSP_CERTID *actual = create_cert_id (i);
+      OCSP_CERTID *actual;
       OCSP_CERTID *expected = create_cert_id (i);
       int status;
 
@@ -78,6 +82,8 @@ test_mongoc_cache_insert (void)
          entry, &actual, &status, NULL, NULL, NULL, NULL);
       BSON_ASSERT (OCSP_id_cmp (actual, expected) == 0);
    }
+
+   _mongoc_ocsp_cache_clear ();
 }
 
 static void
@@ -111,13 +117,16 @@ test_mongoc_cache_update (void)
    later = time (NULL);
    expected = ASN1_GENERALIZEDTIME_set (NULL, later);
 
+   /* should not add new entry */
    cache_insert (id, V_OCSP_CERTSTATUS_GOOD, expected);
    BSON_ASSERT (_mongoc_ocsp_cache_length () == 1);
 
+   _mongoc_ocsp_cache_clear ();
 }
+
 void
 test_ocsp_cache_install (TestSuite *suite)
 {
-   TestSuite_Add (suite, "/ocsp_cache/insert", test_mongoc_cache_insert);
-   TestSuite_Add (suite, "/ocsp_cache/update", test_mongoc_cache_update);
+   TestSuite_Add (suite, "/OCSPCache/insert", test_mongoc_cache_insert);
+   TestSuite_Add (suite, "/OCSPCache/update", test_mongoc_cache_update);
 }
