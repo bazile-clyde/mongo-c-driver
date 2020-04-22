@@ -89,7 +89,6 @@ test_mongoc_cache_update (void)
    ASN1_GENERALIZEDTIME *expected;
    OCSP_CERTID *id;
    cache_entry_list_t *entry;
-   int status;
 
    _mongoc_ocsp_cache_clear ();
    BSON_ASSERT (_mongoc_ocsp_cache_length () == 0);
