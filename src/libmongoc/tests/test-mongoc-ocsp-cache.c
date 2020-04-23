@@ -37,6 +37,7 @@ create_cert_id (long serial)
 
    ASN1_BIT_STRING_free(issuer_key);
    ASN1_INTEGER_free(serial_number);
+   X509_NAME_free(issuer_name);
    return id;
 }
 
@@ -51,6 +52,9 @@ cache_insert (OCSP_CERTID *id, int status, ASN1_GENERALIZEDTIME *next_update)
    resp = OCSP_response_create (status, bs);
 
    _mongoc_ocsp_cache_set_resp (id, resp);
+
+   OCSP_RESPONSE_free (resp);
+   OCSP_BASICRESP_free(bs);
 }
 
 static void
@@ -122,6 +126,8 @@ test_mongoc_cache_update (void)
    BSON_ASSERT (_mongoc_ocsp_cache_length () == 1);
 
    _mongoc_ocsp_cache_clear ();
+   ASN1_GENERALIZEDTIME_free(actual);
+   ASN1_GENERALIZEDTIME_free(expected);
 }
 
 void

@@ -131,7 +131,15 @@ _mongoc_ocsp_cache_clear ()
       cache_entry_list_t *temp;
 
       temp = iter->next;
+
+      OCSP_CERTID_free(iter->id);
+      ASN1_GENERALIZEDTIME_free(iter->produced_at);
+      ASN1_GENERALIZEDTIME_free(iter->this_update);
+      ASN1_GENERALIZEDTIME_free(iter->next_update);
       bson_free(iter);
+
       iter = temp;
    }
+
+   cache = NULL;
 }
