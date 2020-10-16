@@ -560,7 +560,8 @@ test_mongoc_uri_functions (void)
       "mongodb://localhost/?" MONGOC_URI_SERVERSELECTIONTIMEOUTMS "=3"
       "&" MONGOC_URI_JOURNAL "=true"
       "&" MONGOC_URI_WTIMEOUTMS "=42"
-      "&" MONGOC_URI_CANONICALIZEHOSTNAME "=false");
+      "&" MONGOC_URI_CANONICALIZEHOSTNAME "=false"
+      "&" MONGOC_URI_TIMEOUTMS "=5");
 
    ASSERT_CMPINT (
       mongoc_uri_get_option_as_int32 (uri, "serverselectiontimeoutms", 18),
@@ -572,6 +573,10 @@ test_mongoc_uri_functions (void)
       mongoc_uri_get_option_as_int32 (uri, "serverselectiontimeoutms", 19),
       ==,
       18);
+
+   ASSERT_CMPINT (mongoc_uri_get_option_as_int32 (uri, MONGOC_URI_TIMEOUTMS, 0), ==, 5);
+   ASSERT (mongoc_uri_set_option_as_int32 (uri, MONGOC_URI_TIMEOUTMS, 10));
+   ASSERT_CMPINT ( mongoc_uri_get_option_as_int32 (uri, MONGOC_URI_TIMEOUTMS, 0), ==, 10);
 
    ASSERT_CMPINT (
       mongoc_uri_get_option_as_int32 (uri, MONGOC_URI_WTIMEOUTMS, 18), ==, 42);
@@ -2471,6 +2476,10 @@ test_mongoc_uri_duplicates (void)
    ASSERT_LOG_DUPE (MONGOC_URI_SERVERSELECTIONTIMEOUTMS);
    BSON_ASSERT (mongoc_uri_get_option_as_int32 (
                    uri, MONGOC_URI_SERVERSELECTIONTIMEOUTMS, 0) == 2);
+
+   RECREATE_URI (MONGOC_URI_TIMEOUTMS "=1&" MONGOC_URI_TIMEOUTMS "=2");
+   ASSERT_LOG_DUPE (MONGOC_URI_TIMEOUTMS);
+   BSON_ASSERT (mongoc_uri_get_option_as_int32 ( uri, MONGOC_URI_TIMEOUTMS, 0) == 2);
 
    RECREATE_URI (MONGOC_URI_SERVERSELECTIONTRYONCE
                  "=false&" MONGOC_URI_SERVERSELECTIONTRYONCE "=true");
