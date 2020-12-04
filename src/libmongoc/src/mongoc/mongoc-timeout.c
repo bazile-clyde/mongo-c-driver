@@ -26,17 +26,24 @@ mongoc_timeout_get_timeout_ms (const mongoc_timeout_t *timeout)
    return timeout->timeout_ms;
 }
 
-void
-mongoc_timeout_set_timeout_ms (mongoc_timeout_t *timeout, int64_t timeout_ms)
+bool
+_mongoc_timeout_set_timeout_ms (mongoc_timeout_t *timeout, int64_t timeout_ms)
 {
    BSON_ASSERT (timeout);
    if (timeout_ms < 0) {
-      MONGOC_WARNING ("invalid negative timeout");
-      return;
+      MONGOC_ERROR ("invalid negative timeout");
+      return false;
    }
 
    timeout->timeout_ms = timeout_ms;
    timeout->is_set = true;
+   return true;
+}
+
+void
+mongoc_timeout_set_timeout_ms (mongoc_timeout_t *timeout, int64_t timeout_ms)
+{
+   _mongoc_timeout_set_timeout_ms(timeout, timeout_ms);
 }
 
 mongoc_timeout_t *
@@ -55,8 +62,11 @@ mongoc_timeout_t *
 mongoc_timeout_new_int64 (int64_t timeout_ms)
 {
    mongoc_timeout_t *timeout = mongoc_timeout_new ();
-   mongoc_timeout_set_timeout_ms (timeout, timeout_ms);
-   return timeout;
+   if (_mongoc_timeout_set_timeout_ms (timeout, timeout_ms))
+      return timeout;
+
+   mongoc_timeout_destroy(timeout);
+   return NULL;
 }
 
 mongoc_timeout_t *
