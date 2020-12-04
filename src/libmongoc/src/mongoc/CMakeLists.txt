@@ -58,6 +58,7 @@ set (src_libmongoc_src_mongoc_DIST_hs
    mongoc-stream-tls-libressl.h
    mongoc-stream-tls-openssl.h
    mongoc-stream-tls-secure-channel.h
+   mongoc-timeout.h
    mongoc-stream-tls-secure-transport.h
    mongoc-topology-description.h
    mongoc-uri.h
@@ -157,6 +158,7 @@ set (src_libmongoc_src_mongoc_DIST_noinst_hs
    mongoc-stream-gridfs-download-private.h
    mongoc-stream-gridfs-upload-private.h
    mongoc-thread-private.h
+   mongoc-timeout-private.h
    mongoc-topology-description-apm-private.h
    mongoc-topology-description-private.h
    mongoc-topology-private.h
@@ -267,6 +269,7 @@ set (src_libmongoc_src_mongoc_DIST_cs
    mongoc-stream-tls-openssl-bio.c
    mongoc-secure-transport.c
    mongoc-stream-tls-secure-transport.c
+   mongoc-timeout.c
    mongoc-secure-channel.c
    mongoc-stream-tls-secure-channel.c
    mongoc-cluster-sasl.c

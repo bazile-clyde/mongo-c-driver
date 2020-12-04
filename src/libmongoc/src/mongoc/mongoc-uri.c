@@ -741,7 +741,8 @@ mongoc_uri_option_is_int32 (const char *key)
 bool
 mongoc_uri_option_is_int64 (const char *key)
 {
-   return !strcasecmp (key, MONGOC_URI_WTIMEOUTMS);
+   return !strcasecmp (key, MONGOC_URI_WTIMEOUTMS) ||
+          !strcasecmp (key, MONGOC_URI_TIMEOUTMS);
 }
 
 bool
