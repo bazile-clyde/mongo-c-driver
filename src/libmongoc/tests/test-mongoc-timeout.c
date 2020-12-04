@@ -15,6 +15,7 @@
  */
 
 #include "TestSuite.h"
+#include "test-libmongoc.h"
 
 #include <mongoc-timeout.h>
 
@@ -30,7 +31,7 @@ test_mongoc_timeout_new (void)
    BSON_ASSERT (!mongoc_timeout_is_set (timeout));
    mongoc_timeout_destroy (timeout);
 
-   expected = 123;
+   expected = 1;
    timeout = mongoc_timeout_new_int64 (expected);
    BSON_ASSERT (mongoc_timeout_is_set (timeout));
    BSON_ASSERT (expected == mongoc_timeout_get_timeout_ms (timeout));
@@ -38,18 +39,33 @@ test_mongoc_timeout_new (void)
 }
 
 void
-test_mongoc_timeout_set (void) {
+test_mongoc_timeout_set (void)
+{
    mongoc_timeout_t *timeout = NULL;
-   int64_t expected = 123;
+   int64_t expected;
 
    timeout = mongoc_timeout_new ();
    BSON_ASSERT (!mongoc_timeout_is_set (timeout));
-   mongoc_timeout_set_timeout_ms(timeout, expected);
+
+   expected = -1;
+   capture_logs (true);
+   mongoc_timeout_set_timeout_ms (timeout, expected);
+   ASSERT_CAPTURED_LOG (
+      "mongoc", MONGOC_LOG_LEVEL_WARNING, "invalid negative timeout");
+   clear_captured_logs ();
+   BSON_ASSERT (!mongoc_timeout_is_set (timeout));
+
+   expected = 1;
+   mongoc_timeout_set_timeout_ms (timeout, expected);
+   BSON_ASSERT (mongoc_timeout_is_set (timeout));
+   BSON_ASSERT (expected == mongoc_timeout_get_timeout_ms (timeout));
+
+   expected = 0;
+   mongoc_timeout_set_timeout_ms (timeout, expected);
    BSON_ASSERT (mongoc_timeout_is_set (timeout));
    BSON_ASSERT (expected == mongoc_timeout_get_timeout_ms (timeout));
 
    mongoc_timeout_destroy (timeout);
-
 }
 
 void
