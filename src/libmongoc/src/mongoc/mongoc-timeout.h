@@ -21,26 +21,30 @@
 
 #include <bson/bson.h>
 
+#include "mongoc-macros.h"
+
 typedef struct _mongoc_timeout_t mongoc_timeout_t;
 
-MONGOC_EXPORT(mongoc_timeout_t *)
-mongoc_timeout_new (int64_t value);
+MONGOC_EXPORT (mongoc_timeout_t *)
+mongoc_timeout_new ();
 
-MONGOC_EXPORT(mongoc_timeout_t *)
+MONGOC_EXPORT (mongoc_timeout_t *)
+mongoc_timeout_new_int64 (int64_t timeout_ms);
+
+MONGOC_EXPORT (mongoc_timeout_t *)
 mongoc_timeout_copy (mongoc_timeout_t *timeout);
 
 MONGOC_EXPORT (int64_t)
-mongoc_timeout_get_timeout_ms ( const mongoc_timeout_t *timeout);
+mongoc_timeout_get_timeout_ms (const mongoc_timeout_t *timeout);
 
 MONGOC_EXPORT (void)
-mongoc_timeout_set_timeout_ms (mongoc_timeout_t *timeout);
+mongoc_timeout_set_timeout_ms (mongoc_timeout_t *timeout, int64_t timeout_ms);
 
-MONGOC_EXPORT(bool)
-mongoc_timeout_is_set(mongoc_timeout_t *timeout);
+MONGOC_EXPORT (bool)
+mongoc_timeout_is_set (mongoc_timeout_t *timeout);
 
-MONGOC_EXPORT(void)
+MONGOC_EXPORT (void)
 mongoc_timeout_destroy (mongoc_timeout_t *timeout);
-
 
 
 #endif // MONGOC_TIMEOUT_H

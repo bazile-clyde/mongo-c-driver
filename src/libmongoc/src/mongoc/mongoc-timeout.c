@@ -18,39 +18,58 @@
 #include "mongoc-timeout.h"
 
 int64_t
-mongoc_timeout_get_timeout_ms ( const mongoc_timeout_t *timeout) {
+mongoc_timeout_get_timeout_ms (const mongoc_timeout_t *timeout)
+{
+   BSON_ASSERT (timeout);
+
    return timeout->timeout_ms;
 }
 
 void
-mongoc_timeout_set_timeout_ms (mongoc_timeout_t *timeout, int64_t value) {
-   timeout->timeout_ms = value;
+mongoc_timeout_set_timeout_ms (mongoc_timeout_t *timeout, int64_t timeout_ms)
+{
+   BSON_ASSERT (timeout);
+
+   timeout->timeout_ms = timeout_ms;
    timeout->is_set = true;
 }
 
-
 mongoc_timeout_t *
-mongoc_timeout_new (int64_t value) {
+mongoc_timeout_new ()
+{
    mongoc_timeout_t *timeout;
 
    timeout = (mongoc_timeout_t *) bson_malloc0 (sizeof *timeout);
+   timeout->timeout_ms = 0;
+   timeout->is_set = false;
 
-   mongoc_timeout_set_timeout_ms(timeout, value);
    return timeout;
 }
 
 mongoc_timeout_t *
-mongoc_timeout_copy (mongoc_timeout_t *timeout) {
-   return mongoc_timeout_new(timeout->timeout_ms);
+mongoc_timeout_new_int64 (int64_t timeout_ms)
+{
+   mongoc_timeout_t *timeout = mongoc_timeout_new ();
+   mongoc_timeout_set_timeout_ms (timeout, timeout_ms);
+   return timeout;
+}
+
+mongoc_timeout_t *
+mongoc_timeout_copy (mongoc_timeout_t *timeout)
+{
+   BSON_ASSERT (timeout);
+
+   return mongoc_timeout_new (timeout->timeout_ms);
 }
 
 void
-mongoc_timeout_destroy (mongoc_timeout_t *timeout) {
-     bson_free(timeout);
+mongoc_timeout_destroy (mongoc_timeout_t *timeout)
+{
+   bson_free (timeout);
 }
 
 bool
-mongoc_timeout_is_set(mongoc_timeout_t *timeout) {
-   return timeout->is_set;
+mongoc_timeout_is_set (mongoc_timeout_t *timeout)
+{
+   return timeout && timeout->is_set;
 }
-

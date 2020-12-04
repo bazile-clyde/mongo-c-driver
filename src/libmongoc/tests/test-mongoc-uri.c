@@ -506,34 +506,6 @@ test_mongoc_uri_authmechanismproperties (void)
    mongoc_uri_destroy (uri);
 }
 
-static void
-test_mongoc_timeout_ms (void){
-   int64_t timeout_ms = 100;
-   char *uri_string = bson_strdup_printf(
-   "mongodb://foo:bar@localhost:27017/baz?" MONGOC_URI_TIMEOUTMS "=%" PRId64, timeout_ms);
-   mongoc_uri_t *uri = mongoc_uri_new(uri_string);
-   mongoc_client_t *client = NULL;
-
-   // int64_t expected = mongoc_uri_get_option_as_int64(uri, MONGOC_URI_TIMEOUTMS, -1);
-   // printf("expected=%ld\n", expected);
-   BSON_ASSERT(mongoc_uri_get_option_as_int64(uri, MONGOC_URI_TIMEOUTMS, -1) == timeout_ms);
-
-   // timeout_ms = 0;
-   // mongoc_uri_set_option_as_int64(uri, MONGOC_URI_TIMEOUTMS, timeout_ms);
-   // expected = mongoc_uri_get_option_as_int64(uri, MONGOC_URI_TIMEOUTMS, -1);
-   // printf("expected=%ld\n", expected);
-   // BSON_ASSERT( expected == timeout_ms);
-
-   // deprecate ###############################################################
-   uri_string = bson_strdup_printf(
-      "mongodb://foo:bar@localhost:27017/baz?" MONGOC_URI_TIMEOUTMS "=%"
-      PRId64 "&" MONGOC_URI_SOCKETTIMEOUTMS "=%" PRId64, timeout_ms, 123L);
-   BSON_ASSERT(!mongoc_uri_new(uri_string));
-
-   bson_free(uri_string);
-   mongoc_uri_destroy(uri);
-   mongoc_client_destroy(client);
-}
 
 static void
 test_mongoc_uri_functions (void)
@@ -2787,7 +2759,6 @@ test_uri_install (TestSuite *suite)
    TestSuite_Add (suite,
                   "/Uri/auth_mechanism_properties",
                   test_mongoc_uri_authmechanismproperties);
-   TestSuite_Add (suite, "/Uri/timeout_ms", test_mongoc_timeout_ms);
    TestSuite_Add (suite, "/Uri/functions", test_mongoc_uri_functions);
    TestSuite_Add (suite, "/Uri/ssl", test_mongoc_uri_ssl);
    TestSuite_Add (suite, "/Uri/tls", test_mongoc_uri_tls);
