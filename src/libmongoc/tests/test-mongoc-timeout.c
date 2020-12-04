@@ -31,11 +31,11 @@ _test_mongoc_timeout_new_success (int64_t expected)
 }
 
 void
-_test_mongoc_timeout_new_failure (int64_t try, const char *err_msg) {
+_test_mongoc_timeout_new_failure (int64_t try, const char *err_msg)
+{
    capture_logs (true);
-   BSON_ASSERT(!mongoc_timeout_new_int64(try));
-   ASSERT_CAPTURED_LOG (
-      "mongoc", MONGOC_LOG_LEVEL_ERROR, err_msg);
+   BSON_ASSERT (!mongoc_timeout_new_int64 (try));
+   ASSERT_CAPTURED_LOG ("mongoc", MONGOC_LOG_LEVEL_ERROR, err_msg);
    clear_captured_logs ();
 }
 
@@ -46,30 +46,33 @@ test_mongoc_timeout_new (void)
 
    BSON_ASSERT (!mongoc_timeout_is_set (timeout));
 
-   BSON_ASSERT(timeout = mongoc_timeout_new ());
+   BSON_ASSERT (timeout = mongoc_timeout_new ());
    BSON_ASSERT (!mongoc_timeout_is_set (timeout));
    mongoc_timeout_destroy (timeout);
 
-   _test_mongoc_timeout_new_failure (-1,"invalid negative timeout");
-   _test_mongoc_timeout_new_failure (INT64_MIN,"invalid negative timeout");
+   _test_mongoc_timeout_new_failure (-1, "invalid negative timeout");
+   _test_mongoc_timeout_new_failure (INT64_MIN, "invalid negative timeout");
 
-   _test_mongoc_timeout_new_success(0);
-   _test_mongoc_timeout_new_success(1);
-   _test_mongoc_timeout_new_success(INT64_MAX);
+   _test_mongoc_timeout_new_success (0);
+   _test_mongoc_timeout_new_success (1);
+   _test_mongoc_timeout_new_success (INT64_MAX);
 }
 
 void
-_test_mongoc_timeout_set_failure(mongoc_timeout_t *timeout, int64_t try, const char *err_msg) {
+_test_mongoc_timeout_set_failure (mongoc_timeout_t *timeout,
+                                  int64_t try,
+                                  const char *err_msg)
+{
    capture_logs (true);
    mongoc_timeout_set_timeout_ms (timeout, try);
-   ASSERT_CAPTURED_LOG (
-      "mongoc", MONGOC_LOG_LEVEL_ERROR, err_msg);
+   ASSERT_CAPTURED_LOG ("mongoc", MONGOC_LOG_LEVEL_ERROR, err_msg);
    clear_captured_logs ();
    BSON_ASSERT (!mongoc_timeout_is_set (timeout));
 }
 
 void
-_test_mongoc_timeout_set_success(mongoc_timeout_t *timeout, int64_t expected) {
+_test_mongoc_timeout_set_success (mongoc_timeout_t *timeout, int64_t expected)
+{
    mongoc_timeout_set_timeout_ms (timeout, expected);
    BSON_ASSERT (mongoc_timeout_is_set (timeout));
    BSON_ASSERT (expected == mongoc_timeout_get_timeout_ms (timeout));
@@ -83,8 +86,9 @@ test_mongoc_timeout_set (void)
    timeout = mongoc_timeout_new ();
    BSON_ASSERT (!mongoc_timeout_is_set (timeout));
 
-   _test_mongoc_timeout_set_failure(timeout, -1, "invalid negative timeout");
-   _test_mongoc_timeout_set_failure(timeout, INT64_MIN, "invalid negative timeout");
+   _test_mongoc_timeout_set_failure (timeout, -1, "invalid negative timeout");
+   _test_mongoc_timeout_set_failure (
+      timeout, INT64_MIN, "invalid negative timeout");
 
    _test_mongoc_timeout_set_success (timeout, 0);
    _test_mongoc_timeout_set_success (timeout, 1);
@@ -94,12 +98,24 @@ test_mongoc_timeout_set (void)
 }
 
 void
-test_mongoc_timeout_copy (void) {
-   int64_t expected = 1;
-   mongoc_timeout_t *timeout = mongoc_timeout_new_int64(expected);
+test_mongoc_timeout_copy (void)
+{
+   mongoc_timeout_t *expected = NULL;
+   mongoc_timeout_t *actual = NULL;
 
-   // TODO
-   mongoc_timeout_destroy(timeout);
+   BSON_ASSERT (!mongoc_timeout_is_set (actual) &&
+                !mongoc_timeout_is_set (expected));
+
+   expected = mongoc_timeout_new_int64 (1);
+   actual = mongoc_timeout_copy (expected);
+
+   BSON_ASSERT (mongoc_timeout_get_timeout_ms (actual) ==
+                mongoc_timeout_get_timeout_ms (expected));
+   BSON_ASSERT (mongoc_timeout_is_set (actual) &&
+                mongoc_timeout_is_set (expected));
+
+   mongoc_timeout_destroy (expected);
+   mongoc_timeout_destroy (actual);
 }
 
 void
