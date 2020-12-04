@@ -25,6 +25,7 @@
 #include "mongoc-read-prefs.h"
 #include "mongoc-read-concern.h"
 #include "mongoc-write-concern.h"
+#include "mongoc-timeout-private.h"
 
 BSON_BEGIN_DECLS
 
@@ -35,6 +36,7 @@ struct _mongoc_database_t {
    mongoc_read_prefs_t *read_prefs;
    mongoc_read_concern_t *read_concern;
    mongoc_write_concern_t *write_concern;
+   mongoc_timeout_t *timeout;
 };
 
 

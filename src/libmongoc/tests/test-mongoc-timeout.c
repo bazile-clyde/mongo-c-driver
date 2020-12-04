@@ -16,8 +16,12 @@
 
 #include "TestSuite.h"
 #include "test-libmongoc.h"
+#include "test-conveniences.h"
 
 #include <mongoc-timeout-private.h>
+#include <mongoc/mongoc-client-private.h>
+#include <mongoc/mongoc-database-private.h>
+#include <mongoc/mongoc-error-private.h>
 
 void
 _test_mongoc_timeout_new_success (int64_t expected)
@@ -155,6 +159,243 @@ test_mongoc_timeout_destroy (void)
 }
 
 void
+test_mongoc_timeout_set_on_client (void)
+{
+   mongoc_client_t *client = NULL;
+   bson_error_t error;
+   int64_t expected;
+
+   client = mongoc_client_new (NULL);
+   BSON_ASSERT (!mongoc_timeout_is_set (client->timeout));
+
+   expected = 1;
+   BSON_ASSERT (mongoc_client_set_timeout (client, expected, &error));
+   BSON_ASSERT (mongoc_timeout_is_set (client->timeout));
+   BSON_ASSERT (expected == mongoc_client_get_timeout (client));
+
+   mongoc_client_destroy (client);
+}
+
+void
+test_mongoc_timeout_set_on_database (void)
+{
+   mongoc_client_t *client = NULL;
+   mongoc_database_t *database = NULL;
+   int64_t expected;
+
+   client = mongoc_client_new (NULL);
+   database = _mongoc_database_new (client, "test", NULL, NULL, NULL);
+   BSON_ASSERT (!mongoc_timeout_is_set (database->timeout));
+
+   expected = 1;
+   mongoc_database_set_timeout (database, expected);
+   BSON_ASSERT (mongoc_timeout_is_set (database->timeout));
+   BSON_ASSERT (expected == mongoc_database_get_timeout (database));
+
+   mongoc_database_destroy (database);
+   mongoc_client_destroy (client);
+}
+
+void
+test_mongoc_timeout_set_on_collection (void)
+{
+   mongoc_client_t *client = NULL;
+   mongoc_collection_t *collection = NULL;
+   int64_t expected;
+
+   client = mongoc_client_new (NULL);
+   collection =
+      _mongoc_collection_new (client, "test", "test", NULL, NULL, NULL, NULL);
+
+   BSON_ASSERT (!mongoc_timeout_is_set (collection->timeout));
+
+   expected = 1;
+   mongoc_collection_set_timeout (collection, expected);
+   BSON_ASSERT (mongoc_timeout_is_set (collection->timeout));
+   BSON_ASSERT (expected == mongoc_collection_get_timeout (collection));
+
+   mongoc_collection_destroy (collection);
+   mongoc_client_destroy (client);
+}
+
+void
+test_mongoc_timeout_database_inherit_from_client (void)
+{
+   mongoc_client_t *client = NULL;
+   mongoc_database_t *database = NULL;
+   bson_error_t error;
+   int64_t expected = 1;
+
+   client = mongoc_client_new (NULL);
+   BSON_ASSERT (mongoc_client_set_timeout (client, expected, &error));
+   BSON_ASSERT (expected == mongoc_client_get_timeout (client));
+
+   database = _mongoc_database_new (client, "test", NULL, NULL, NULL);
+   BSON_ASSERT (expected == mongoc_database_get_timeout (database));
+
+   mongoc_database_destroy (database);
+   mongoc_client_destroy (client);
+}
+
+void
+test_mongoc_timeout_collection_inherit_from_database (void)
+{
+   mongoc_client_t *client = NULL;
+   mongoc_database_t *database = NULL;
+   mongoc_collection_t *collection = NULL;
+   int64_t expected;
+
+   client = mongoc_client_new (NULL);
+   BSON_ASSERT (!mongoc_timeout_is_set (client->timeout));
+
+   expected = 1;
+   database = mongoc_client_get_database (client, "test");
+   mongoc_database_set_timeout (database, expected);
+   BSON_ASSERT (mongoc_timeout_is_set (database->timeout));
+   BSON_ASSERT (expected == mongoc_database_get_timeout (database));
+
+   collection = mongoc_database_get_collection (database, "test");
+   BSON_ASSERT (mongoc_timeout_is_set (collection->timeout));
+   BSON_ASSERT (expected == mongoc_collection_get_timeout (collection));
+
+   mongoc_collection_destroy (collection);
+   mongoc_database_destroy (database);
+   mongoc_client_destroy (client);
+}
+
+// This should silently override instead of error
+//
+// void
+// test_mongoc_timeout_deprecation_socket_timeout_ms (void)
+// {
+//    mongoc_uri_t *uri = NULL;
+//    mongoc_client_t *client = NULL;
+//    bson_error_t error;
+//
+//    capture_logs (true);
+//    ASSERT (
+//       !mongoc_uri_new ("mongodb://user@localhost/?"
+//       MONGOC_URI_SOCKETTIMEOUTMS
+//                        "=1&" MONGOC_URI_TIMEOUTMS "=1"));
+//    clear_captured_logs ();
+//
+//    ASSERT (uri = mongoc_uri_new (
+//               "mongodb://user@localhost/?" MONGOC_URI_SOCKETTIMEOUTMS "=1"));
+//    client = mongoc_client_new_from_uri (uri);
+//    BSON_ASSERT (!mongoc_client_set_timeout (client, 1, &error));
+//    ASSERT_ERROR_CONTAINS (error,
+//                           MONGOC_ERROR_CLIENT,
+//                           MONGOC_ERROR_TIMEOUT_DEPRECATED_ARG,
+//                           "Cannot 'timeout' with deprecated timeout
+//                           options");
+//
+//
+//    mongoc_uri_destroy (uri);
+//    mongoc_client_destroy (client);
+// }
+
+void
+test_mongoc_timeout_with_server_selection_timeout (void)
+{
+   const char *non_existent_host = "mongodb://localhost:12345/";
+   mongoc_uri_t *uri = NULL;
+   mongoc_client_t *client = NULL;
+   mongoc_collection_t *coll = NULL;
+   bson_t reply = BSON_INITIALIZER;
+   bson_error_t error;
+
+   uri = mongoc_uri_new (non_existent_host);
+   mongoc_uri_set_option_as_int32 (
+      uri, MONGOC_URI_SERVERSELECTIONTIMEOUTMS, 100000);
+   mongoc_uri_set_option_as_bool (
+      uri, MONGOC_URI_SERVERSELECTIONTRYONCE, false);
+   mongoc_uri_set_option_as_int64 (uri, MONGOC_URI_TIMEOUTMS, 50);
+
+   client = mongoc_client_new_from_uri (uri);
+   coll = mongoc_client_get_collection (client, "db", "coll");
+
+   BSON_ASSERT (!mongoc_collection_command_simple (
+      coll, tmp_bson ("{'ping': 1}"), NULL, &reply, &error));
+   ASSERT_ERROR_CONTAINS (error,
+                          MONGOC_ERROR_SERVER_SELECTION,
+                          MONGOC_ERROR_TIMEOUT,
+                          "serverselectiontimeoutms");
+
+   mongoc_uri_destroy (uri);
+   mongoc_collection_drop (coll, &error);
+   mongoc_collection_destroy (coll);
+   mongoc_client_destroy (client);
+}
+
+void
+_disable_fail_point_command (mongoc_client_t *client)
+{
+   bson_error_t error;
+   bson_t reply = BSON_INITIALIZER;
+   const bson_t *cmd = tmp_bson ("{'configureFailPoint': 'failCommand',"
+                                 " 'mode': 'off'}");
+
+   ASSERT_OR_PRINT (
+      mongoc_client_command_simple (client, "admin", cmd, NULL, &reply, &error),
+      error);
+
+   bson_destroy (&reply);
+}
+
+void
+_enable_fail_point_command (mongoc_client_t *client,
+                            int times,
+                            int code,
+                            const char *command)
+{
+   bson_error_t error;
+   bson_t reply = BSON_INITIALIZER;
+   const bson_t *cmd =
+      tmp_bson ("{'configureFailPoint': 'failCommand',"
+                " 'mode': {'times': %d},"
+                " 'data': {'errorCode': %d, 'failCommands': ['%s']}}",
+                times,
+                code,
+                command);
+
+   ASSERT_OR_PRINT (
+      mongoc_client_command_simple (client, "admin", cmd, NULL, &reply, &error),
+      error);
+   bson_destroy (&reply);
+}
+
+void
+test_mongoc_timeout_with_retryable_read_timeout (void)
+{
+   mongoc_uri_t *uri;
+   mongoc_client_t *client;
+   mongoc_collection_t *coll;
+   bson_t reply = BSON_INITIALIZER;
+   bson_error_t error;
+
+   uri = test_framework_get_uri ();
+   mongoc_uri_set_option_as_bool (uri, "retryReads", true);
+
+   client = mongoc_client_new_from_uri (uri);
+   mongoc_client_set_timeout(client, 50, NULL);
+   BSON_ASSERT(mongoc_timeout_get_timeout_ms(client->timeout) == 50);
+
+   _disable_fail_point_command (client);
+   _enable_fail_point_command (client, 1000, MONGOC_SERVER_ERR_NOTMASTER, "aggregate");
+
+   coll = mongoc_client_get_collection (client, "db", "coll");
+
+   BSON_ASSERT (-1 == mongoc_collection_count_documents(
+      coll, tmp_bson("{}"), NULL, NULL, &reply, &error));
+    ASSERT_ERROR_CONTAINS (error, MONGOC_ERROR_QUERY, MONGOC_SERVER_ERR_NOTMASTER, "Failing command");
+
+   _disable_fail_point_command (client);
+
+   mongoc_uri_destroy (uri);
+   mongoc_collection_destroy (coll);
+   mongoc_client_destroy (client);
+}
+void
 test_timeout_install (TestSuite *suite)
 {
    TestSuite_Add (suite, "/Timeout/new", test_mongoc_timeout_new);
@@ -162,4 +403,31 @@ test_timeout_install (TestSuite *suite)
    TestSuite_Add (suite, "/Timeout/get", test_mongoc_timeout_get);
    TestSuite_Add (suite, "/Timeout/copy", test_mongoc_timeout_copy);
    TestSuite_Add (suite, "/Timeout/destroy", test_mongoc_timeout_destroy);
+
+   TestSuite_Add (
+      suite, "/Timeout/configure/client", test_mongoc_timeout_set_on_client);
+   TestSuite_Add (suite,
+                  "/Timeout/configure/database",
+                  test_mongoc_timeout_set_on_database);
+   TestSuite_Add (suite,
+                  "/Timeout/configure/collection",
+                  test_mongoc_timeout_set_on_collection);
+
+   TestSuite_Add (suite,
+                  "/Timeout/inheritance/database",
+                  test_mongoc_timeout_database_inherit_from_client);
+   TestSuite_Add (suite,
+                  "/Timeout/inheritance/collection",
+                  test_mongoc_timeout_collection_inherit_from_database);
+
+   //  TestSuite_Add (suite,
+   //                 "/Timeout/deprecation/socket_timeout_ms",
+   //                 test_mongoc_timeout_deprecation_socket_timeout_ms);
+
+   TestSuite_Add (suite,
+                  "/Timeout/with/server_selection_timeout",
+                  test_mongoc_timeout_with_server_selection_timeout);
+   TestSuite_Add (suite,
+                  "/Timeout/with/retryable_read_timeout",
+                  test_mongoc_timeout_with_retryable_read_timeout);
 }

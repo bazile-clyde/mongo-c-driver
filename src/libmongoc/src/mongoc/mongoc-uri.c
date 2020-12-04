@@ -52,6 +52,7 @@ struct _mongoc_uri_t {
    mongoc_read_prefs_t *read_prefs;
    mongoc_read_concern_t *read_concern;
    mongoc_write_concern_t *write_concern;
+   mongoc_timeout_t *timeout;
 };
 
 #define MONGOC_URI_ERROR(error, format, ...)         \
@@ -741,7 +742,8 @@ mongoc_uri_option_is_int32 (const char *key)
 bool
 mongoc_uri_option_is_int64 (const char *key)
 {
-   return !strcasecmp (key, MONGOC_URI_WTIMEOUTMS);
+   return !strcasecmp (key, MONGOC_URI_WTIMEOUTMS) ||
+          !strcasecmp (key, MONGOC_URI_TIMEOUTMS);
 }
 
 bool
@@ -1131,7 +1133,8 @@ mongoc_uri_apply_options (mongoc_uri_t *uri,
                                MONGOC_ERROR_COMMAND,
                                MONGOC_ERROR_COMMAND_INVALID_ARG,
                                "Failed to set %s to %d",
-                               canon, bval);
+                               canon,
+                               bval);
                return false;
             }
          } else {
@@ -1263,6 +1266,11 @@ mongoc_uri_parse_options (mongoc_uri_t *uri,
    return true;
 }
 
+bool
+mongoc_uri_has_deprecated_timeouts (mongoc_uri_t *uri)
+{
+   return bson_has_field (&uri->options, MONGOC_URI_SOCKETTIMEOUTMS);
+}
 
 static bool
 mongoc_uri_finalize_tls (mongoc_uri_t *uri, bson_error_t *error)
@@ -1705,6 +1713,33 @@ mongoc_uri_set_mechanism_properties (mongoc_uri_t *uri,
    }
 }
 
+bool
+_mongoc_set_timeout (mongoc_uri_t *uri, bson_error_t *error)
+{
+   bson_iter_t iter;
+
+   if (bson_iter_init_find (&iter, &uri->options, MONGOC_URI_TIMEOUTMS)) {
+      if (!BSON_ITER_HOLDS_INT64 (&iter)) {
+         MONGOC_URI_ERROR (error,
+                           "Unsupported '%s' value. Must be int64",
+                           MONGOC_URI_TIMEOUTMS);
+         return false;
+      }
+
+      if (mongoc_uri_has_deprecated_timeouts (uri)) {
+         MONGOC_URI_ERROR (error,
+                           "Deprecated timeouts cannot be used with '%s'",
+                           MONGOC_URI_TIMEOUTMS);
+         return false;
+      }
+
+      int64_t timeout_ms = bson_iter_as_int64 (&iter);
+      mongoc_timeout_set_timeout_ms (uri->timeout, timeout_ms);
+   }
+
+   return true;
+}
+
 
 static bool
 _mongoc_uri_assign_read_prefs_mode (mongoc_uri_t *uri, bson_error_t *error)
@@ -1870,6 +1905,8 @@ mongoc_uri_new_with_error (const char *uri_string, bson_error_t *error)
    /* Initialize empty read_concern */
    uri->read_concern = mongoc_read_concern_new ();
 
+   uri->timeout = mongoc_timeout_new ();
+
    if (!uri_string) {
       uri_string = "mongodb://127.0.0.1/";
    }
@@ -1880,6 +1917,11 @@ mongoc_uri_new_with_error (const char *uri_string, bson_error_t *error)
    }
 
    uri->str = bson_strdup (uri_string);
+
+   if (!_mongoc_set_timeout (uri, error)) {
+      mongoc_uri_destroy (uri);
+      return NULL;
+   }
 
    if (!_mongoc_uri_assign_read_prefs_mode (uri, error)) {
       mongoc_uri_destroy (uri);
@@ -2212,6 +2254,7 @@ mongoc_uri_destroy (mongoc_uri_t *uri)
       mongoc_read_prefs_destroy (uri->read_prefs);
       mongoc_read_concern_destroy (uri->read_concern);
       mongoc_write_concern_destroy (uri->write_concern);
+      mongoc_timeout_destroy (uri->timeout);
 
       if (uri->password) {
          bson_zero_free (uri->password, strlen (uri->password));
@@ -2243,6 +2286,7 @@ mongoc_uri_copy (const mongoc_uri_t *uri)
    copy->read_prefs = mongoc_read_prefs_copy (uri->read_prefs);
    copy->read_concern = mongoc_read_concern_copy (uri->read_concern);
    copy->write_concern = mongoc_write_concern_copy (uri->write_concern);
+   copy->timeout = mongoc_timeout_copy (uri->timeout);
 
    LL_FOREACH (uri->hosts, iter)
    {
@@ -2314,8 +2358,7 @@ mongoc_uri_unescape (const char *escaped_string)
 #else
              (1 != sscanf (&ptr[1], "%02x", &hex))
 #endif
-             ||
-             0 == hex) {
+             || 0 == hex) {
             bson_string_free (str, true);
             MONGOC_WARNING ("Invalid %% escape sequence");
             return NULL;
@@ -2348,6 +2391,14 @@ mongoc_uri_get_read_prefs_t (const mongoc_uri_t *uri) /* IN */
    BSON_ASSERT (uri);
 
    return uri->read_prefs;
+}
+
+int64_t
+mongoc_uri_get_timeout_ms (const mongoc_uri_t *uri) /* IN */
+{
+   BSON_ASSERT (uri);
+
+   return mongoc_timeout_get_timeout_ms (uri->timeout);
 }
 
 
@@ -3106,5 +3157,11 @@ _mongoc_uri_init_scram (const mongoc_uri_t *uri,
 
    _mongoc_scram_set_pass (scram, mongoc_uri_get_password (uri));
    _mongoc_scram_set_user (scram, mongoc_uri_get_username (uri));
+}
+
+mongoc_timeout_t *
+mongoc_uri_get_timeout_t (const mongoc_uri_t *uri)
+{
+   return uri->timeout;
 }
 #endif

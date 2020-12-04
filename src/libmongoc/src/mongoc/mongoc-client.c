@@ -1119,6 +1119,7 @@ _mongoc_client_new_from_uri (mongoc_topology_t *topology)
    const mongoc_read_prefs_t *read_prefs;
    const mongoc_read_concern_t *read_concern;
    const mongoc_write_concern_t *write_concern;
+   const mongoc_timeout_t *timeout;
    const char *appname;
 
    BSON_ASSERT (topology);
@@ -1148,6 +1149,9 @@ _mongoc_client_new_from_uri (mongoc_topology_t *topology)
 
    read_prefs = mongoc_uri_get_read_prefs_t (client->uri);
    client->read_prefs = mongoc_read_prefs_copy (read_prefs);
+
+   timeout = mongoc_uri_get_timeout_t (client->uri);
+   client->timeout = mongoc_timeout_copy (timeout);
 
    appname =
       mongoc_uri_get_option_as_utf8 (client->uri, MONGOC_URI_APPNAME, NULL);
@@ -1208,6 +1212,7 @@ mongoc_client_destroy (mongoc_client_t *client)
       mongoc_cluster_destroy (&client->cluster);
       mongoc_uri_destroy (client->uri);
       mongoc_set_destroy (client->client_sessions);
+      mongoc_timeout_destroy (client->timeout);
 
 #ifdef MONGOC_ENABLE_SSL
       _mongoc_ssl_opts_cleanup (&client->ssl_opts, true);
@@ -1406,7 +1411,8 @@ mongoc_client_get_collection (mongoc_client_t *client,
                                   collection,
                                   client->read_prefs,
                                   client->read_concern,
-                                  client->write_concern);
+                                  client->write_concern,
+                                  client->timeout);
 }
 
 
@@ -1711,9 +1717,8 @@ retry:
       retry_server_stream = mongoc_cluster_stream_for_writes (
          &client->cluster, parts->assembled.session, NULL, &ignored_error);
 
-      if (retry_server_stream &&
-          retry_server_stream->sd->max_wire_version >=
-             WIRE_VERSION_RETRY_WRITES) {
+      if (retry_server_stream && retry_server_stream->sd->max_wire_version >=
+                                    WIRE_VERSION_RETRY_WRITES) {
          parts->assembled.server_stream = retry_server_stream;
          bson_destroy (reply);
          GOTO (retry);
@@ -1742,9 +1747,11 @@ _mongoc_client_retryable_read_command_with_stream (
    bson_error_t *error)
 {
    mongoc_server_stream_t *retry_server_stream = NULL;
-   bool is_retryable = true;
    bool ret;
    bson_t reply_local;
+
+   int64_t timeout_ms = mongoc_timeout_get_timeout_ms(client->timeout);
+   int64_t expire_at = bson_get_monotonic_time () + (timeout_ms * 1000);
 
    if (reply == NULL) {
       reply = &reply_local;
@@ -1754,39 +1761,35 @@ _mongoc_client_retryable_read_command_with_stream (
 
    BSON_ASSERT (parts->is_retryable_read);
 
-retry:
-   ret = mongoc_cluster_run_command_monitored (
-      &client->cluster, &parts->assembled, reply, error);
+   for(int64_t now = bson_get_monotonic_time(); now < expire_at; now = bson_get_monotonic_time()) {
+      ret = mongoc_cluster_run_command_monitored (
+         &client->cluster, &parts->assembled, reply, error);
 
-   /* If a retryable error is encountered and the read is retryable, select
-    * a new readable stream and retry. If server selection fails or the selected
-    * server does not support retryable reads, fall through and allow the
-    * original error to be reported. */
-   if (is_retryable &&
-       _mongoc_read_error_get_type (ret, error, reply) ==
-          MONGOC_READ_ERR_RETRY) {
-      bson_error_t ignored_error;
+      /* If a retryable error is encountered and the read is retryable, select
+       * a new readable stream and retry. If server selection fails or the selected
+       * server does not support retryable reads, fall through and allow the
+       * original error to be reported. */
+      if (_mongoc_read_error_get_type (ret, error, reply) == MONGOC_READ_ERR_RETRY) {
+         bson_error_t ignored_error;
 
-      /* each read command may be retried at most once */
-      is_retryable = false;
+         if (retry_server_stream) {
+            mongoc_server_stream_cleanup (retry_server_stream);
+         }
 
-      if (retry_server_stream) {
-         mongoc_server_stream_cleanup (retry_server_stream);
-      }
+         retry_server_stream =
+            mongoc_cluster_stream_for_reads (&client->cluster,
+                                             parts->read_prefs,
+                                             parts->assembled.session,
+                                             NULL,
+                                             &ignored_error);
 
-      retry_server_stream =
-         mongoc_cluster_stream_for_reads (&client->cluster,
-                                          parts->read_prefs,
-                                          parts->assembled.session,
-                                          NULL,
-                                          &ignored_error);
-
-      if (retry_server_stream &&
-          retry_server_stream->sd->max_wire_version >=
-             WIRE_VERSION_RETRY_READS) {
-         parts->assembled.server_stream = retry_server_stream;
-         bson_destroy (reply);
-         GOTO (retry);
+         if (retry_server_stream && retry_server_stream->sd->max_wire_version >=
+                                       WIRE_VERSION_RETRY_READS) {
+            parts->assembled.server_stream = retry_server_stream;
+            bson_destroy (reply);
+         } else {
+            break;
+         }
       }
    }
 
@@ -3079,4 +3082,23 @@ mongoc_client_enable_auto_encryption (mongoc_client_t *client,
       return false;
    }
    return _mongoc_cse_client_enable_auto_encryption (client, opts, error);
+}
+
+bool
+mongoc_client_set_timeout (mongoc_client_t *client,
+                           int64_t timeout_ms,
+                           bson_error_t *error)
+{
+   BSON_ASSERT (client);
+
+   mongoc_timeout_set_timeout_ms (client->timeout, timeout_ms);
+   return true;
+}
+
+int64_t
+mongoc_client_get_timeout (mongoc_client_t *client)
+{
+   BSON_ASSERT (client);
+
+   return mongoc_timeout_get_timeout_ms (client->timeout);
 }
