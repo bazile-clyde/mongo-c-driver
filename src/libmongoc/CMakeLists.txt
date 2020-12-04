@@ -9,7 +9,7 @@ include (CheckStructHasMember)
 
 message ("libmongoc version (from VERSION_CURRENT file): ${MONGOC_VERSION}")
 
-#Defaults.
+# Defaults.
 set (MONGOC_ENABLE_SSL 0)
 set (MONGOC_ENABLE_SSL_OPENSSL 0)
 set (MONGOC_HAVE_ASN1_STRING_GET0_DATA 0)
@@ -45,11 +45,11 @@ if (NOT ENABLE_ZSTD MATCHES "ON|AUTO|OFF")
    message (FATAL_ERROR "ENABLE_ZSTD option must be ON, AUTO, or OFF")
 endif ()
 
-#Disable warnings on bundled zlib source files.
+# Disable warnings on bundled zlib source files.
 set_source_files_properties (${ZLIB_SOURCES} PROPERTIES COMPILE_FLAGS -w)
 
-#Copy zconf.h.in to zconf.h; even when using system zlib, the 'dist' target
-#will look for zconf.h in that location.
+# Copy zconf.h.in to zconf.h; even when using system zlib, the 'dist' target
+# will look for zconf.h in that location.
 configure_file (
    "${SOURCE_DIR}/src/zlib-1.2.11/zconf.h.in"
    "${CMAKE_BINARY_DIR}/src/zlib-1.2.11/zconf.h"
@@ -87,7 +87,7 @@ if ( (ENABLE_ZLIB STREQUAL "BUNDLED")
 endif ()
 
 if (NOT ENABLE_ZLIB STREQUAL "OFF")
-#At this point the system zlib was found, or the bundled library was used
+   # At this point the system zlib was found, or the bundled library was used
    include (CheckIncludeFiles)
    check_include_files ("unistd.h" HAVE_UNISTD_H)
    check_include_files ("stdarg.h" HAVE_STDARG_H)
@@ -109,7 +109,7 @@ if (NOT ENABLE_ZSTD STREQUAL OFF)
       else ()
          message (STATUS "  Not found")
       endif ()
-#The compression format below this version isn't supported. See SERVER-43070
+   # The compression format below this version isn't supported. See SERVER-43070
    elseif (${ZSTD_VERSION} VERSION_LESS "0.8.0")
       if (ENABLE_ZSTD MATCHES "ON")
          message (FATAL_ERROR "Detected zstd version ${ZSTD_VERSION} but version 0.8.0 required")
@@ -131,10 +131,10 @@ if (NOT ENABLE_ZSTD STREQUAL OFF)
 endif()
 
 if (NOT ENABLE_SSL STREQUAL OFF)
-#Try OpenSSL automatically everywhere but Mac and Windows.
+   # Try OpenSSL automatically everywhere but Mac and Windows.
    if (ENABLE_SSL STREQUAL "OPENSSL"
        OR (NOT APPLE AND NOT WIN32 AND ENABLE_SSL STREQUAL "AUTO"))
-#Sets OPENSSL_FOUND on success.
+      # Sets OPENSSL_FOUND on success.
       include (FindOpenSSL)
    endif ()
 
@@ -191,7 +191,7 @@ if (OPENSSL_FOUND)
          " to OpenSSL, define OPENSSL_ROOT_DIR as the path to the OpenSSL installation directory.")
    endif ()
    include (CheckLibraryExists)
-#Check for newer OpenSSL string function.
+   # Check for newer OpenSSL string function.
    check_library_exists ("${OPENSSL_CRYPTO_LIBRARY}"
       ASN1_STRING_get0_data "openssl/asn1.h" HAVE_ASN1_STRING_GET0_DATA
    )
@@ -236,7 +236,7 @@ if (NOT ENABLE_SASL MATCHES "CYRUS|SSPI|AUTO|OFF")
       "ENABLE_SASL option must be CYRUS, SSPI, AUTO, or OFF")
 endif ()
 
-#Defaults.
+# Defaults.
 set (MONGOC_ENABLE_SASL 0)
 set (MONGOC_ENABLE_SASL_CYRUS 0)
 set (MONGOC_ENABLE_SASL_SSPI 0)
@@ -247,7 +247,7 @@ if (NOT ENABLE_SASL STREQUAL OFF)
       set (MONGOC_ENABLE_SASL 1)
       set (MONGOC_ENABLE_SASL_SSPI 1)
    elseif (ENABLE_SASL MATCHES "AUTO|CYRUS")
-#Sets SASL_LIBRARIES.
+      # Sets SASL_LIBRARIES.
       include (FindSASL2)
       if (SASL_FOUND)
          set (MONGOC_ENABLE_SASL 1)
@@ -294,15 +294,15 @@ function (mongoc_get_accept_args ARG2 ARG3)
 
    FILE (WRITE ${CMAKE_CURRENT_BINARY_DIR}/accept_test${VAR}.c
    "#include <sys/types.h>
-#include <sys/socket.h>
+    #include <sys/socket.h>
 
     int main ()
     {
-   int a = 0;
-   ${ARG2_VAL} *b = 0;
-   ${ARG3_VAL} *c = 0;
-   accept (a, b, c);
-   return 0;
+      int a = 0;
+      ${ARG2_VAL} *b = 0;
+      ${ARG3_VAL} *c = 0;
+      accept (a, b, c);
+      return 0;
    }
    ")
 
@@ -325,7 +325,7 @@ function (mongoc_get_accept_args ARG2 ARG3)
 
 endfunction ()
 
-#Reasonable defaults.
+# Reasonable defaults.
 set (MONGOC_SOCKET_ARG2 "struct sockaddr")
 set (MONGOC_SOCKET_ARG3 "socklen_t")
 
@@ -348,7 +348,7 @@ if (ENABLE_TRACING)
    set (MONGOC_TRACE 1)
 endif ()
 
-#Sets SNAPPY_LIBRARIES and SNAPPY_INCLUDE_DIRS.
+# Sets SNAPPY_LIBRARIES and SNAPPY_INCLUDE_DIRS.
 include (FindSnappy)
 if (SNAPPY_INCLUDE_DIRS)
    set (MONGOC_ENABLE_COMPRESSION 1)
@@ -386,7 +386,7 @@ endif()
 
 if (NOT ENABLE_ICU STREQUAL OFF)
    if (ENABLE_ICU STREQUAL ON)
-#do not suppress log output if find_package cannot find ICU
+      # do not suppress log output if find_package cannot find ICU
       find_package (ICU COMPONENTS uc)
    elseif (ENABLE_ICU STREQUAL AUTO)
       find_package (ICU QUIET COMPONENTS uc)
@@ -402,7 +402,7 @@ if (NOT ENABLE_ICU STREQUAL OFF)
    endif()
 endif()
 
-#Configure client side encryption.
+# Configure client side encryption.
 set (MONGOC_ENABLE_CLIENT_SIDE_ENCRYPTION 0)
 if (NOT ENABLE_CLIENT_SIDE_ENCRYPTION MATCHES "AUTO|ON|OFF")
    message (FATAL_ERROR, "ENABLE_CLIENT_SIDE_ENCRYPTION option must be AUTO, ON, or OFF")
@@ -417,7 +417,7 @@ if (NOT MONGOC_ENABLE_SSL)
 elseif (NOT ENABLE_CLIENT_SIDE_ENCRYPTION STREQUAL OFF)
    message ("Searching for libmongocrypt")
    if (ENABLE_CLIENT_SIDE_ENCRYPTION STREQUAL ON)
-#do not suppress log output if find_package cannot find libmongocrypt
+      # do not suppress log output if find_package cannot find libmongocrypt
       find_package (mongocrypt)
    elseif (ENABLE_CLIENT_SIDE_ENCRYPTION STREQUAL AUTO)
       find_package (mongocrypt QUIET)
@@ -716,7 +716,7 @@ if (WIN32)
 endif ()
 
 if (MONGOC_ENABLE_MONGODB_AWS_AUTH)
-#Disable warnings on bundled kms_message source files.
+   # Disable warnings on bundled kms_message source files.
    set_source_files_properties (${KMS_MSG_SOURCES} PROPERTIES COMPILE_FLAGS -w)
    set (SOURCES ${SOURCES} ${KMS_MSG_SOURCES})
 
@@ -754,8 +754,8 @@ target_compile_definitions (mongoc_shared
       ${KMS_MSG_DEFINITIONS}
       COMMON_PREFIX_=_mongoc_common
 )
-#Several directories in the source and build trees contain headers we would like
-#include via relative reference, but they all end up in the same install path
+# Several directories in the source and build trees contain headers we would like
+# include via relative reference, but they all end up in the same install path
 target_include_directories (
    mongoc_shared
    PUBLIC
@@ -793,8 +793,8 @@ if (MONGOC_ENABLE_STATIC_BUILD)
          ${KMS_MSG_DEFINITIONS}
          COMMON_PREFIX_=_mongoc_common
    )
-#Several directories in the source and build trees contain headers we would like
-#include via relative reference, but they all end up in the same install path
+   # Several directories in the source and build trees contain headers we would like
+   # include via relative reference, but they all end up in the same install path
    target_include_directories (
       mongoc_static
       PUBLIC
@@ -824,7 +824,7 @@ endif ()
 add_executable (mongoc-stat ${PROJECT_SOURCE_DIR}/../../src/tools/mongoc-stat.c)
 target_link_libraries (mongoc-stat mongoc_shared ${LIBRARIES})
 
-#mongoc - stat works if shared memory performance counters are enabled.
+# mongoc-stat works if shared memory performance counters are enabled.
 if (ENABLE_SHM_COUNTERS STREQUAL "ON")
    install (PROGRAMS ${PROJECT_BINARY_DIR}/mongoc-stat
       DESTINATION ${CMAKE_INSTALL_BINDIR}
@@ -835,7 +835,7 @@ function (mongoc_add_test test use_shared)
    if (ENABLE_TESTS)
       add_executable (${test} ${ARGN})
       if (NOT MSVC)
-#We've tests that test our deprecated api. MSVC 2013 will complain about invalid flag
+         # We've tests that test our deprecated api. MSVC 2013 will complain about invalid flag
          set_source_files_properties (${ARGN} PROPERTIES COMPILE_FLAGS -Wno-deprecated-declarations)
       else ()
          target_link_libraries (${test} DbgHelp.dll)
@@ -1023,14 +1023,14 @@ if (ENABLE_TESTS)
       WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/../..
    )
 
-#"make test" doesn't compile tests, so we create "make check" which compiles
-#and runs tests : https: // gitlab.kitware.com/cmake/cmake/issues/8774
+   # "make test" doesn't compile tests, so we create "make check" which compiles
+   # and runs tests: https://gitlab.kitware.com/cmake/cmake/issues/8774
    add_custom_target (check COMMAND ${CMAKE_CTEST_COMMAND} -V
       DEPENDS test-libmongoc
    )
 endif ()
 
-#examples /
+# examples/
 mongoc_add_example (example-client TRUE ${PROJECT_SOURCE_DIR}/examples/example-client.c)
 mongoc_add_example (example-collection-watch TRUE ${PROJECT_SOURCE_DIR}/examples/example-collection-watch.c)
 if (NOT WIN32)
@@ -1057,13 +1057,13 @@ mongoc_add_example (mongoc-dump TRUE ${PROJECT_SOURCE_DIR}/examples/mongoc-dump.
 mongoc_add_example (mongoc-ping TRUE ${PROJECT_SOURCE_DIR}/examples/mongoc-ping.c)
 mongoc_add_example (mongoc-tail TRUE ${PROJECT_SOURCE_DIR}/examples/mongoc-tail.c)
 
-#examples / aggregation /
+# examples/aggregation/
 mongoc_add_example (aggregation1 TRUE ${PROJECT_SOURCE_DIR}/examples/aggregation/aggregation1.c)
 
-#examples / basic_aggregation /
+# examples/basic_aggregation/
 mongoc_add_example (basic-aggregation TRUE ${PROJECT_SOURCE_DIR}/examples/basic_aggregation/basic-aggregation.c)
 
-#examples / bulk /
+# examples/bulk/
 mongoc_add_example (bulk-collation TRUE ${PROJECT_SOURCE_DIR}/examples/bulk/bulk-collation.c)
 mongoc_add_example (bulk1 TRUE ${PROJECT_SOURCE_DIR}/examples/bulk/bulk1.c)
 mongoc_add_example (bulk2 TRUE ${PROJECT_SOURCE_DIR}/examples/bulk/bulk2.c)
@@ -1072,10 +1072,10 @@ mongoc_add_example (bulk4 TRUE ${PROJECT_SOURCE_DIR}/examples/bulk/bulk4.c)
 mongoc_add_example (bulk5 TRUE ${PROJECT_SOURCE_DIR}/examples/bulk/bulk5.c)
 mongoc_add_example (bulk6 TRUE ${PROJECT_SOURCE_DIR}/examples/bulk/bulk6.c)
 
-#examples / common_operations /
+# examples/common_operations/
 mongoc_add_example (common-operations TRUE ${PROJECT_SOURCE_DIR}/examples/common_operations/common-operations.c)
 
-#examples / find_and_modify_with_opts /
+# examples/find_and_modify_with_opts/
 mongoc_add_example (fam TRUE ${PROJECT_SOURCE_DIR}/examples/find_and_modify_with_opts/fam.c)
 
 if (MONGOC_ENABLE_CLIENT_SIDE_ENCRYPTION)
@@ -1127,7 +1127,7 @@ if (ENABLE_APPLE_FRAMEWORK)
    )
 endif ()
 
-#Define pkg - config files
+# Define pkg-config files
 set (VERSION "${MONGOC_VERSION}")
 set (prefix "${CMAKE_INSTALL_PREFIX}")
 set (libdir "\${prefix}/${CMAKE_INSTALL_LIBDIR}")
@@ -1144,10 +1144,10 @@ foreach (
       STRING (REGEX REPLACE "^lib" "" FLAG_FILE "${FLAG_FILE}")
       set (MONGOC_LIBRARIES "${MONGOC_LIBRARIES} -L${FLAG_DIR} -l${FLAG_FILE}")
    elseif (FLAG MATCHES "^-.*")
-#Flag starts with dash, add it as - is.
+      # Flag starts with dash, add it as-is.
       set (MONGOC_LIBRARIES "${MONGOC_LIBRARIES} ${FLAG}")
    else ()
-#Flag doesn't start with dash, add it with a dash.
+      # Flag doesn't start with dash, add it with a dash.
       set (MONGOC_LIBRARIES "${MONGOC_LIBRARIES} -l${FLAG}")
    endif ()
 endforeach ()
@@ -1170,7 +1170,7 @@ if (MONGOC_ENABLE_STATIC_INSTALL)
       DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig
    )
 endif ()
-#Deprecated alias for libmongoc - 1.0.pc, see CDRIVER - 2086.
+# Deprecated alias for libmongoc-1.0.pc, see CDRIVER-2086.
 if (MONGOC_ENABLE_SSL)
    configure_file (
       ${CMAKE_CURRENT_SOURCE_DIR}/src/libmongoc-ssl-1.0.pc.in
@@ -1232,7 +1232,7 @@ if (ENABLE_MAN_PAGES STREQUAL ON OR ENABLE_HTML_DOCS STREQUAL ON)
 endif ()
 
 add_subdirectory (build)
-#sub - directory 'doc' was already included above
+# sub-directory 'doc' was already included above
 add_subdirectory (examples)
 add_subdirectory (src)
 add_subdirectory (tests)

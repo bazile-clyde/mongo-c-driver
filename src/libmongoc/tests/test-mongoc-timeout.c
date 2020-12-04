@@ -38,7 +38,23 @@ test_mongoc_timeout_new (void)
 }
 
 void
+test_mongoc_timeout_set (void) {
+   mongoc_timeout_t *timeout = NULL;
+   int64_t expected = 123;
+
+   timeout = mongoc_timeout_new ();
+   BSON_ASSERT (!mongoc_timeout_is_set (timeout));
+   mongoc_timeout_set_timeout_ms(timeout, expected);
+   BSON_ASSERT (mongoc_timeout_is_set (timeout));
+   BSON_ASSERT (expected == mongoc_timeout_get_timeout_ms (timeout));
+
+   mongoc_timeout_destroy (timeout);
+
+}
+
+void
 test_timeout_install (TestSuite *suite)
 {
    TestSuite_Add (suite, "/Timeout/new", test_mongoc_timeout_new);
+   TestSuite_Add (suite, "/Timeout/set", test_mongoc_timeout_set);
 }

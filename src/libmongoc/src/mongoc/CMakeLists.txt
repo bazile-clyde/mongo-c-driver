@@ -23,8 +23,7 @@ set (src_libmongoc_src_mongoc_DIST_defs op - delete.def op - get - more.def op -
         tls - secure - transport.h mongoc - topology - description.h mongoc -
         uri.h mongoc - version - functions.h mongoc - version.h.in mongoc -
         write -
-        concern.h utlist.h forwarding /
-           mongoc.h) extra_dist_generated (mongoc - version.h)
+        concern.h utlist.h forwarding mongoc.h) extra_dist_generated (mongoc - version.h)
 
       set (
          src_libmongoc_src_mongoc_DIST_noinst_hs mongoc - aggregate -
