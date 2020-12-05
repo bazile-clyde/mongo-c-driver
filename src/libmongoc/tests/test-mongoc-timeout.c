@@ -19,6 +19,8 @@
 
 #include <mongoc-timeout-private.h>
 
+const int DEFAULT_TIMEOUT = 0;
+
 void
 _test_mongoc_timeout_new_success (int64_t expected)
 {
@@ -67,7 +69,9 @@ _test_mongoc_timeout_set_failure (mongoc_timeout_t *timeout,
    mongoc_timeout_set_timeout_ms (timeout, try);
    ASSERT_CAPTURED_LOG ("mongoc", MONGOC_LOG_LEVEL_ERROR, err_msg);
    clear_captured_logs ();
+
    BSON_ASSERT (!mongoc_timeout_is_set (timeout));
+   BSON_ASSERT (DEFAULT_TIMEOUT == mongoc_timeout_get_timeout_ms (timeout));
 }
 
 void
@@ -98,6 +102,24 @@ test_mongoc_timeout_set (void)
 }
 
 void
+test_mongoc_timeout_get (void)
+{
+   mongoc_timeout_t *timeout = NULL;
+   int64_t expected;
+
+   BSON_ASSERT (timeout = mongoc_timeout_new ());
+   BSON_ASSERT (!mongoc_timeout_is_set (timeout));
+   BSON_ASSERT (DEFAULT_TIMEOUT == mongoc_timeout_get_timeout_ms (timeout));
+
+   expected = 1;
+   mongoc_timeout_set_timeout_ms (timeout, expected);
+   BSON_ASSERT (mongoc_timeout_is_set (timeout));
+   BSON_ASSERT (expected == mongoc_timeout_get_timeout_ms (timeout));
+
+   mongoc_timeout_destroy (timeout);
+}
+
+void
 test_mongoc_timeout_copy (void)
 {
    mongoc_timeout_t *expected = NULL;
@@ -123,5 +145,6 @@ test_timeout_install (TestSuite *suite)
 {
    TestSuite_Add (suite, "/Timeout/new", test_mongoc_timeout_new);
    TestSuite_Add (suite, "/Timeout/set", test_mongoc_timeout_set);
+   TestSuite_Add (suite, "/Timeout/get", test_mongoc_timeout_get);
    TestSuite_Add (suite, "/Timeout/copy", test_mongoc_timeout_copy);
 }
