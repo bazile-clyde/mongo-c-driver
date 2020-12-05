@@ -15,8 +15,12 @@
  */
 
 #include "mongoc-timeout-private.h"
-#include "mongoc-timeout.h"
 #include "mongoc.h"
+
+typedef struct _mongoc_timeout_t {
+   bool is_set;
+   int64_t timeout_ms;
+} mongoc_timeout_t ;
 
 int64_t
 mongoc_timeout_get_timeout_ms (const mongoc_timeout_t *timeout)
@@ -30,6 +34,7 @@ bool
 _mongoc_timeout_set_timeout_ms (mongoc_timeout_t *timeout, int64_t timeout_ms)
 {
    BSON_ASSERT (timeout);
+
    if (timeout_ms < 0) {
       MONGOC_ERROR ("invalid negative timeout");
       return false;
