@@ -19,8 +19,10 @@
 
 #include <mongoc-timeout-private.h>
 #include <mongoc/mongoc-client-private.h>
+#include <mongoc/mongoc-database-private.h>
 
 const int DEFAULT_TIMEOUT = 0;
+const char *DEFAULT_URI = "mongodb://localhost";
 
 void
 _test_mongoc_timeout_new_success (int64_t expected)
@@ -145,21 +147,44 @@ void
 test_mongoc_timeout_set_on_client (void)
 {
    mongoc_client_t *client = NULL;
-   const char *uri_string = "mongodb://localhost";
    mongoc_timeout_t *timeout = NULL;
    int64_t expected;
 
-   client = mongoc_client_new (uri_string);
+   client = mongoc_client_new (DEFAULT_URI);
    timeout = mongoc_client_get_timeout (client);
 
    BSON_ASSERT (!mongoc_timeout_is_set (timeout));
    BSON_ASSERT (DEFAULT_TIMEOUT == mongoc_client_get_timeout_ms (client));
 
    expected = 1;
-   mongoc_client_set_timeout_ms(client, expected);
+   mongoc_client_set_timeout_ms (client, expected);
    BSON_ASSERT (mongoc_timeout_is_set (timeout));
    BSON_ASSERT (expected == mongoc_client_get_timeout_ms (client));
 
+   mongoc_client_destroy (client);
+}
+
+void
+test_mongoc_timeout_set_on_database (void)
+{
+   mongoc_client_t *client = NULL;
+   mongoc_database_t *database = NULL;
+   mongoc_timeout_t *timeout = NULL;
+   int64_t expected;
+
+   client = mongoc_client_new (DEFAULT_URI);
+   database = _mongoc_database_new (client, "test", NULL, NULL, NULL);
+   timeout = mongoc_database_get_timeout (database);
+
+   BSON_ASSERT (!mongoc_timeout_is_set (timeout));
+   BSON_ASSERT (DEFAULT_TIMEOUT == mongoc_database_get_timeout_ms (database));
+
+   expected = 1;
+   mongoc_database_set_timeout_ms (database, expected);
+   BSON_ASSERT (mongoc_timeout_is_set (timeout));
+   BSON_ASSERT (expected == mongoc_database_get_timeout_ms (database));
+
+   mongoc_database_destroy (database);
    mongoc_client_destroy (client);
 }
 
@@ -171,5 +196,9 @@ test_timeout_install (TestSuite *suite)
    TestSuite_Add (suite, "/Timeout/get", test_mongoc_timeout_get);
    TestSuite_Add (suite, "/Timeout/copy", test_mongoc_timeout_copy);
 
-   TestSuite_Add (suite, "/Timeout/set_on_client", test_mongoc_timeout_set_on_client);
+   TestSuite_Add (
+      suite, "/Timeout/configure/client", test_mongoc_timeout_set_on_client);
+   TestSuite_Add (suite,
+                  "/Timeout/configure/database",
+                  test_mongoc_timeout_set_on_database);
 }

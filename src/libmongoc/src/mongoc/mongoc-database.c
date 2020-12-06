@@ -76,6 +76,7 @@ _mongoc_database_new (mongoc_client_t *client,
                                    : mongoc_read_concern_new ();
    db->read_prefs = read_prefs ? mongoc_read_prefs_copy (read_prefs)
                                : mongoc_read_prefs_new (MONGOC_READ_PRIMARY);
+   db->timeout = mongoc_timeout_new ();
 
    db->name = bson_strdup (name);
 
@@ -122,6 +123,9 @@ mongoc_database_destroy (mongoc_database_t *database)
       mongoc_write_concern_destroy (database->write_concern);
       database->write_concern = NULL;
    }
+
+   mongoc_timeout_destroy (database->timeout);
+   database->timeout = NULL;
 
    bson_free (database->name);
    bson_free (database);
@@ -1028,4 +1032,28 @@ mongoc_database_watch (const mongoc_database_t *db,
                        const bson_t *opts)
 {
    return _mongoc_change_stream_new_from_database (db, pipeline, opts);
+}
+
+mongoc_timeout_t *
+mongoc_database_get_timeout (mongoc_database_t *database)
+{
+   BSON_ASSERT (database);
+
+   return database->timeout;
+}
+
+int64_t
+mongoc_database_get_timeout_ms (mongoc_database_t *database)
+{
+   BSON_ASSERT (database);
+
+   return mongoc_timeout_get_timeout_ms (database->timeout);
+}
+
+void
+mongoc_database_set_timeout_ms (mongoc_database_t *database, int64_t timeout_ms)
+{
+   BSON_ASSERT (database);
+
+   mongoc_timeout_set_timeout_ms (database->timeout, timeout_ms);
 }
