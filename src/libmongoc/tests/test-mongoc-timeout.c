@@ -147,12 +147,18 @@ test_mongoc_timeout_set_on_client (void)
    mongoc_client_t *client = NULL;
    const char *uri_string = "mongodb://localhost";
    mongoc_timeout_t *timeout = NULL;
+   int64_t expected;
 
    client = mongoc_client_new (uri_string);
    timeout = mongoc_client_get_timeout (client);
 
    BSON_ASSERT (!mongoc_timeout_is_set (timeout));
    BSON_ASSERT (DEFAULT_TIMEOUT == mongoc_client_get_timeout_ms (client));
+
+   expected = 1;
+   mongoc_client_set_timeout_ms(client, expected);
+   BSON_ASSERT (mongoc_timeout_is_set (timeout));
+   BSON_ASSERT (expected == mongoc_client_get_timeout_ms (client));
 
    mongoc_client_destroy (client);
 }
@@ -165,5 +171,5 @@ test_timeout_install (TestSuite *suite)
    TestSuite_Add (suite, "/Timeout/get", test_mongoc_timeout_get);
    TestSuite_Add (suite, "/Timeout/copy", test_mongoc_timeout_copy);
 
-   TestSuite_Add (suite, "/Timeout/client", test_mongoc_timeout_set_on_client);
+   TestSuite_Add (suite, "/Timeout/set_on_client", test_mongoc_timeout_set_on_client);
 }
