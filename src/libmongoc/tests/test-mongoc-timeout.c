@@ -22,7 +22,6 @@
 #include <mongoc/mongoc-database-private.h>
 
 const int DEFAULT_TIMEOUT = 0;
-const char *DEFAULT_URI = "mongodb://localhost";
 
 void
 _test_mongoc_timeout_new_success (int64_t expected)
@@ -149,7 +148,7 @@ test_mongoc_timeout_set_on_client (void)
    mongoc_client_t *client = NULL;
    int64_t expected;
 
-   client = mongoc_client_new (DEFAULT_URI);
+   client = mongoc_client_new (NULL);
 
    BSON_ASSERT (!mongoc_timeout_is_set (client->timeout));
    BSON_ASSERT (DEFAULT_TIMEOUT == mongoc_client_get_timeout (client));
@@ -169,7 +168,7 @@ test_mongoc_timeout_set_on_database (void)
    mongoc_database_t *database = NULL;
    int64_t expected;
 
-   client = mongoc_client_new (DEFAULT_URI);
+   client = mongoc_client_new (NULL);
    database = _mongoc_database_new (client, "test", NULL, NULL, NULL);
 
    BSON_ASSERT (!mongoc_timeout_is_set (database->timeout));
@@ -191,7 +190,7 @@ test_mongoc_timeout_set_on_collection (void)
    mongoc_collection_t *collection = NULL;
    int64_t expected;
 
-   client = mongoc_client_new (DEFAULT_URI);
+   client = mongoc_client_new (NULL);
    collection =
       _mongoc_collection_new (client, "test", "test", NULL, NULL, NULL);
 
@@ -221,7 +220,7 @@ test_mongoc_timeout_database_inherit_from_client (void)
    mongoc_database_t *database = NULL;
    int64_t expected = 1;
 
-   client = mongoc_client_new (DEFAULT_URI);
+   client = mongoc_client_new (NULL);
    mongoc_client_set_timeout (client, expected);
    BSON_ASSERT (expected == mongoc_client_get_timeout (client));
 
