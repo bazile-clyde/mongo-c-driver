@@ -76,7 +76,10 @@ _mongoc_database_new (mongoc_client_t *client,
                                    : mongoc_read_concern_new ();
    db->read_prefs = read_prefs ? mongoc_read_prefs_copy (read_prefs)
                                : mongoc_read_prefs_new (MONGOC_READ_PRIMARY);
-   db->timeout = mongoc_timeout_new ();
+
+   db->timeout = mongoc_timeout_is_set (client->timeout)
+                    ? mongoc_timeout_copy (client->timeout)
+                    : mongoc_timeout_new ();
 
    db->name = bson_strdup (name);
 
