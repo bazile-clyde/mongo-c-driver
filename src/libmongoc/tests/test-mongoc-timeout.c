@@ -142,7 +142,7 @@ test_mongoc_timeout_copy (void)
 }
 
 void
-test_mongoc_timeout_set_client (void)
+test_mongoc_timeout_set_on_client (void)
 {
    mongoc_client_t *client = NULL;
    const char *uri_string = "mongodb://localhost";
@@ -165,5 +165,5 @@ test_timeout_install (TestSuite *suite)
    TestSuite_Add (suite, "/Timeout/get", test_mongoc_timeout_get);
    TestSuite_Add (suite, "/Timeout/copy", test_mongoc_timeout_copy);
 
-   TestSuite_Add (suite, "/Timeout/client", test_mongoc_timeout_set_client);
+   TestSuite_Add (suite, "/Timeout/client", test_mongoc_timeout_set_on_client);
 }
