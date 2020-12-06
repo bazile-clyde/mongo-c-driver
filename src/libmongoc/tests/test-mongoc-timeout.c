@@ -147,19 +147,17 @@ void
 test_mongoc_timeout_set_on_client (void)
 {
    mongoc_client_t *client = NULL;
-   mongoc_timeout_t *timeout = NULL;
    int64_t expected;
 
    client = mongoc_client_new (DEFAULT_URI);
-   timeout = mongoc_client_get_timeout (client);
 
-   BSON_ASSERT (!mongoc_timeout_is_set (timeout));
-   BSON_ASSERT (DEFAULT_TIMEOUT == mongoc_client_get_timeout_ms (client));
+   BSON_ASSERT (!mongoc_timeout_is_set (client->timeout));
+   BSON_ASSERT (DEFAULT_TIMEOUT == mongoc_client_get_timeout (client));
 
    expected = 1;
-   mongoc_client_set_timeout_ms (client, expected);
-   BSON_ASSERT (mongoc_timeout_is_set (timeout));
-   BSON_ASSERT (expected == mongoc_client_get_timeout_ms (client));
+   mongoc_client_set_timeout (client, expected);
+   BSON_ASSERT (mongoc_timeout_is_set (client->timeout));
+   BSON_ASSERT (expected == mongoc_client_get_timeout (client));
 
    mongoc_client_destroy (client);
 }
@@ -169,20 +167,18 @@ test_mongoc_timeout_set_on_database (void)
 {
    mongoc_client_t *client = NULL;
    mongoc_database_t *database = NULL;
-   mongoc_timeout_t *timeout = NULL;
    int64_t expected;
 
    client = mongoc_client_new (DEFAULT_URI);
    database = _mongoc_database_new (client, "test", NULL, NULL, NULL);
-   timeout = mongoc_database_get_timeout (database);
 
-   BSON_ASSERT (!mongoc_timeout_is_set (timeout));
-   BSON_ASSERT (DEFAULT_TIMEOUT == mongoc_database_get_timeout_ms (database));
+   BSON_ASSERT (!mongoc_timeout_is_set (database->timeout));
+   BSON_ASSERT (DEFAULT_TIMEOUT == mongoc_database_get_timeout (database));
 
    expected = 1;
-   mongoc_database_set_timeout_ms (database, expected);
-   BSON_ASSERT (mongoc_timeout_is_set (timeout));
-   BSON_ASSERT (expected == mongoc_database_get_timeout_ms (database));
+   mongoc_database_set_timeout (database, expected);
+   BSON_ASSERT (mongoc_timeout_is_set (database->timeout));
+   BSON_ASSERT (expected == mongoc_database_get_timeout (database));
 
    mongoc_database_destroy (database);
    mongoc_client_destroy (client);
@@ -196,11 +192,11 @@ test_mongoc_timeout_database_inherit_from_client (void)
    int64_t expected = 1;
 
    client = mongoc_client_new (DEFAULT_URI);
-   mongoc_client_set_timeout_ms (client, expected);
-   BSON_ASSERT (expected == mongoc_client_get_timeout_ms (client));
+   mongoc_client_set_timeout (client, expected);
+   BSON_ASSERT (expected == mongoc_client_get_timeout (client));
 
    database = _mongoc_database_new (client, "test", NULL, NULL, NULL);
-   BSON_ASSERT (expected == mongoc_database_get_timeout_ms (database));
+   BSON_ASSERT (expected == mongoc_database_get_timeout (database));
 
    mongoc_database_destroy (database);
    mongoc_client_destroy (client);

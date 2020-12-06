@@ -47,9 +47,6 @@ _mongoc_database_new (mongoc_client_t *client,
                       const mongoc_read_concern_t *read_concern,
                       const mongoc_write_concern_t *write_concern);
 
-mongoc_timeout_t *
-mongoc_database_get_timeout (mongoc_database_t *database);
-
 BSON_END_DECLS
 
 

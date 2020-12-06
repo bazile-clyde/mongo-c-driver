@@ -3081,7 +3081,7 @@ mongoc_client_enable_auto_encryption (mongoc_client_t *client,
    return _mongoc_cse_client_enable_auto_encryption (client, opts, error);
 }
 void
-mongoc_client_set_timeout_ms (mongoc_client_t *client, int64_t timeout_ms)
+mongoc_client_set_timeout (mongoc_client_t *client, int64_t timeout_ms)
 {
    BSON_ASSERT (client);
 
@@ -3089,17 +3089,9 @@ mongoc_client_set_timeout_ms (mongoc_client_t *client, int64_t timeout_ms)
 }
 
 int64_t
-mongoc_client_get_timeout_ms (mongoc_client_t *client)
-{
-   BSON_ASSERT (client);
-
-   return mongoc_timeout_get_timeout_ms (client->timeout);
-}
-
-mongoc_timeout_t *
 mongoc_client_get_timeout (mongoc_client_t *client)
 {
    BSON_ASSERT (client);
 
-   return client->timeout;
+   return mongoc_timeout_get_timeout_ms (client->timeout);
 }

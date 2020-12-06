@@ -1037,16 +1037,8 @@ mongoc_database_watch (const mongoc_database_t *db,
    return _mongoc_change_stream_new_from_database (db, pipeline, opts);
 }
 
-mongoc_timeout_t *
-mongoc_database_get_timeout (mongoc_database_t *database)
-{
-   BSON_ASSERT (database);
-
-   return database->timeout;
-}
-
 int64_t
-mongoc_database_get_timeout_ms (mongoc_database_t *database)
+mongoc_database_get_timeout (mongoc_database_t *database)
 {
    BSON_ASSERT (database);
 
@@ -1054,7 +1046,7 @@ mongoc_database_get_timeout_ms (mongoc_database_t *database)
 }
 
 void
-mongoc_database_set_timeout_ms (mongoc_database_t *database, int64_t timeout_ms)
+mongoc_database_set_timeout (mongoc_database_t *database, int64_t timeout_ms)
 {
    BSON_ASSERT (database);
 
