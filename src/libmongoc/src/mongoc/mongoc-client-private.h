@@ -38,6 +38,7 @@
 #include "mongoc-topology-private.h"
 #include "mongoc-write-concern.h"
 #include "mongoc-crypt-private.h"
+#include "mongoc-timeout-private.h"
 
 BSON_BEGIN_DECLS
 
@@ -123,6 +124,8 @@ struct _mongoc_client_t {
    unsigned int csid_rand_seed;
 
    uint32_t generation;
+
+   mongoc_timeout_t *timeout;
 };
 
 /* Defines whether _mongoc_client_command_with_opts() is acting as a read
@@ -243,6 +246,10 @@ mongoc_client_connect (bool buffered,
                        const mongoc_uri_t *uri,
                        const mongoc_host_list_t *host,
                        bson_error_t *error);
+
+mongoc_timeout_t *
+mongoc_client_get_timeout (mongoc_client_t *client);
+
 BSON_END_DECLS
 
 #endif /* MONGOC_CLIENT_PRIVATE_H */

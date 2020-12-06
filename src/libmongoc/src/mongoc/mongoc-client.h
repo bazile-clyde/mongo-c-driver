@@ -268,6 +268,11 @@ mongoc_client_enable_auto_encryption (mongoc_client_t *client,
                                       mongoc_auto_encryption_opts_t *opts,
                                       bson_error_t *error);
 
+MONGOC_EXPORT (void)
+mongoc_client_set_timeout_ms (mongoc_client_t *client, int64_t timeout_ms);
+MONGOC_EXPORT (int64_t)
+mongoc_client_get_timeout_ms (mongoc_client_t *client);
+
 BSON_END_DECLS
 
 

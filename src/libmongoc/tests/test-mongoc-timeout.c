@@ -18,6 +18,7 @@
 #include "test-libmongoc.h"
 
 #include <mongoc-timeout-private.h>
+#include <mongoc/mongoc-client-private.h>
 
 const int DEFAULT_TIMEOUT = 0;
 
@@ -141,10 +142,28 @@ test_mongoc_timeout_copy (void)
 }
 
 void
+test_mongoc_timeout_set_client (void)
+{
+   mongoc_client_t *client = NULL;
+   const char *uri_string = "mongodb://localhost";
+   mongoc_timeout_t *timeout = NULL;
+
+   client = mongoc_client_new (uri_string);
+   timeout = mongoc_client_get_timeout (client);
+
+   BSON_ASSERT (!mongoc_timeout_is_set (timeout));
+   BSON_ASSERT (DEFAULT_TIMEOUT == mongoc_client_get_timeout_ms (client));
+
+   mongoc_client_destroy (client);
+}
+
+void
 test_timeout_install (TestSuite *suite)
 {
    TestSuite_Add (suite, "/Timeout/new", test_mongoc_timeout_new);
    TestSuite_Add (suite, "/Timeout/set", test_mongoc_timeout_set);
    TestSuite_Add (suite, "/Timeout/get", test_mongoc_timeout_get);
    TestSuite_Add (suite, "/Timeout/copy", test_mongoc_timeout_copy);
+
+   TestSuite_Add (suite, "/Timeout/client", test_mongoc_timeout_set_client);
 }

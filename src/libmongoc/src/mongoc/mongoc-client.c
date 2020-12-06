@@ -1149,6 +1149,8 @@ _mongoc_client_new_from_uri (mongoc_topology_t *topology)
    read_prefs = mongoc_uri_get_read_prefs_t (client->uri);
    client->read_prefs = mongoc_read_prefs_copy (read_prefs);
 
+   client->timeout = mongoc_timeout_new ();
+
    appname =
       mongoc_uri_get_option_as_utf8 (client->uri, MONGOC_URI_APPNAME, NULL);
    if (appname && client->topology->single_threaded) {
@@ -1208,6 +1210,7 @@ mongoc_client_destroy (mongoc_client_t *client)
       mongoc_cluster_destroy (&client->cluster);
       mongoc_uri_destroy (client->uri);
       mongoc_set_destroy (client->client_sessions);
+      mongoc_timeout_destroy (client->timeout);
 
 #ifdef MONGOC_ENABLE_SSL
       _mongoc_ssl_opts_cleanup (&client->ssl_opts, true);
@@ -1711,9 +1714,8 @@ retry:
       retry_server_stream = mongoc_cluster_stream_for_writes (
          &client->cluster, parts->assembled.session, NULL, &ignored_error);
 
-      if (retry_server_stream &&
-          retry_server_stream->sd->max_wire_version >=
-             WIRE_VERSION_RETRY_WRITES) {
+      if (retry_server_stream && retry_server_stream->sd->max_wire_version >=
+                                    WIRE_VERSION_RETRY_WRITES) {
          parts->assembled.server_stream = retry_server_stream;
          bson_destroy (reply);
          GOTO (retry);
@@ -1762,9 +1764,8 @@ retry:
     * a new readable stream and retry. If server selection fails or the selected
     * server does not support retryable reads, fall through and allow the
     * original error to be reported. */
-   if (is_retryable &&
-       _mongoc_read_error_get_type (ret, error, reply) ==
-          MONGOC_READ_ERR_RETRY) {
+   if (is_retryable && _mongoc_read_error_get_type (ret, error, reply) ==
+                          MONGOC_READ_ERR_RETRY) {
       bson_error_t ignored_error;
 
       /* each read command may be retried at most once */
@@ -1781,9 +1782,8 @@ retry:
                                           NULL,
                                           &ignored_error);
 
-      if (retry_server_stream &&
-          retry_server_stream->sd->max_wire_version >=
-             WIRE_VERSION_RETRY_READS) {
+      if (retry_server_stream && retry_server_stream->sd->max_wire_version >=
+                                    WIRE_VERSION_RETRY_READS) {
          parts->assembled.server_stream = retry_server_stream;
          bson_destroy (reply);
          GOTO (retry);
@@ -3079,4 +3079,27 @@ mongoc_client_enable_auto_encryption (mongoc_client_t *client,
       return false;
    }
    return _mongoc_cse_client_enable_auto_encryption (client, opts, error);
+}
+void
+mongoc_client_set_timeout_ms (mongoc_client_t *client, int64_t timeout_ms)
+{
+   BSON_ASSERT (client);
+
+   mongoc_timeout_set_timeout_ms (client->timeout, timeout_ms);
+}
+
+int64_t
+mongoc_client_get_timeout_ms (mongoc_client_t *client)
+{
+   BSON_ASSERT (client);
+
+   return mongoc_timeout_get_timeout_ms (client->timeout);
+}
+
+mongoc_timeout_t *
+mongoc_client_get_timeout (mongoc_client_t *client)
+{
+   BSON_ASSERT (client);
+
+   return client->timeout;
 }
