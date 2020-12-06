@@ -185,6 +185,7 @@ _mongoc_collection_new (mongoc_client_t *client,
                                     : mongoc_read_concern_new ();
    col->read_prefs = read_prefs ? mongoc_read_prefs_copy (read_prefs)
                                 : mongoc_read_prefs_new (MONGOC_READ_PRIMARY);
+   col->timeout = mongoc_timeout_new ();
 
    col->ns = bson_strdup_printf ("%s.%s", db, collection);
    col->db = bson_strdup (db);
@@ -241,6 +242,9 @@ mongoc_collection_destroy (mongoc_collection_t *collection) /* IN */
       mongoc_write_concern_destroy (collection->write_concern);
       collection->write_concern = NULL;
    }
+
+   mongoc_timeout_destroy (collection->timeout);
+   collection->timeout = NULL;
 
    bson_free (collection->collection);
    bson_free (collection->db);
@@ -3281,18 +3285,17 @@ mongoc_collection_find_and_modify_with_opts (
    }
    /* inherit write concern from collection if not in transaction */
    else if (server_stream->sd->max_wire_version >=
-             WIRE_VERSION_FAM_WRITE_CONCERN &&
-          !_mongoc_client_session_in_txn (parts.assembled.session)) {
-         if (!mongoc_write_concern_is_valid (collection->write_concern)) {
-            bson_set_error (error,
-                            MONGOC_ERROR_COMMAND,
-                            MONGOC_ERROR_COMMAND_INVALID_ARG,
-                            "The write concern is invalid.");
-            GOTO (done);
-         }
+               WIRE_VERSION_FAM_WRITE_CONCERN &&
+            !_mongoc_client_session_in_txn (parts.assembled.session)) {
+      if (!mongoc_write_concern_is_valid (collection->write_concern)) {
+         bson_set_error (error,
+                         MONGOC_ERROR_COMMAND,
+                         MONGOC_ERROR_COMMAND_INVALID_ARG,
+                         "The write concern is invalid.");
+         GOTO (done);
+      }
 
-         write_concern = collection->write_concern;
-
+      write_concern = collection->write_concern;
    }
 
    if (appended_opts.hint.value_type) {
@@ -3375,9 +3378,8 @@ retry:
       retry_server_stream = mongoc_cluster_stream_for_writes (
          cluster, parts.assembled.session, NULL /* reply */, &ignored_error);
 
-      if (retry_server_stream &&
-          retry_server_stream->sd->max_wire_version >=
-             WIRE_VERSION_RETRY_WRITES) {
+      if (retry_server_stream && retry_server_stream->sd->max_wire_version >=
+                                    WIRE_VERSION_RETRY_WRITES) {
          parts.assembled.server_stream = retry_server_stream;
          GOTO (retry);
       }
@@ -3502,4 +3504,20 @@ mongoc_collection_watch (const mongoc_collection_t *coll,
                          const bson_t *opts)
 {
    return _mongoc_change_stream_new_from_collection (coll, pipeline, opts);
+}
+
+int64_t
+mongoc_collection_get_timeout (mongoc_collection_t *coll)
+{
+   BSON_ASSERT (coll);
+
+   return mongoc_timeout_get_timeout_ms (coll->timeout);
+}
+
+void
+mongoc_collection_set_timeout (mongoc_collection_t *coll, int64_t timeout_ms)
+{
+   BSON_ASSERT (coll);
+
+   mongoc_timeout_set_timeout_ms (coll->timeout, timeout_ms);
 }

@@ -185,6 +185,36 @@ test_mongoc_timeout_set_on_database (void)
 }
 
 void
+test_mongoc_timeout_set_on_collection (void)
+{
+   mongoc_client_t *client = NULL;
+   mongoc_collection_t *collection = NULL;
+   int64_t expected;
+
+   client = mongoc_client_new (DEFAULT_URI);
+   collection =
+      _mongoc_collection_new (client, "test", "test", NULL, NULL, NULL);
+
+   BSON_ASSERT (!mongoc_timeout_is_set (collection->timeout));
+   BSON_ASSERT (DEFAULT_TIMEOUT == mongoc_collection_get_timeout (collection));
+
+   expected = 1;
+   mongoc_collection_set_timeout (collection, expected);
+   BSON_ASSERT (mongoc_timeout_is_set (collection->timeout));
+   BSON_ASSERT (expected == mongoc_collection_get_timeout (collection));
+
+   mongoc_collection_destroy (collection);
+   mongoc_client_destroy (client);
+}
+
+void
+test_mongoc_timeout_collection_inherit_from_database (void)
+{
+   // TODO: we don't need a database object to create a collection. So how do we
+   //  inherit properties from the database?
+}
+
+void
 test_mongoc_timeout_database_inherit_from_client (void)
 {
    mongoc_client_t *client = NULL;
@@ -215,8 +245,14 @@ test_timeout_install (TestSuite *suite)
    TestSuite_Add (suite,
                   "/Timeout/configure/database",
                   test_mongoc_timeout_set_on_database);
+   TestSuite_Add (suite,
+                  "/Timeout/configure/collection",
+                  test_mongoc_timeout_set_on_collection);
 
    TestSuite_Add (suite,
                   "/Timeout/inheritance/database",
                   test_mongoc_timeout_database_inherit_from_client);
+   TestSuite_Add (suite,
+                  "/Timeout/inheritance/collection",
+                  test_mongoc_timeout_collection_inherit_from_database);
 }
