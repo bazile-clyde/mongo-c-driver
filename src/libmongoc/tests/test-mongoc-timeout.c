@@ -299,7 +299,11 @@ test_mongoc_timeout_with_server_selection_timeout (void)
    bson_error_t error;
 
    uri = mongoc_uri_new (non_existent_host);
-   mongoc_uri_set_option_as_int32 (uri, MONGOC_URI_SERVERSELECTIONTIMEOUTMS, 1);
+   mongoc_uri_set_option_as_int32 (
+      uri, MONGOC_URI_SERVERSELECTIONTIMEOUTMS, 100);
+   mongoc_uri_set_option_as_bool (
+      uri, MONGOC_URI_SERVERSELECTIONTRYONCE, false);
+   mongoc_uri_set_option_as_int64 (uri, MONGOC_URI_TIMEOUTMS, 50);
 
    client = mongoc_client_new_from_uri (uri);
    coll = mongoc_client_get_collection (client, "db", "coll");
@@ -309,7 +313,7 @@ test_mongoc_timeout_with_server_selection_timeout (void)
    ASSERT_ERROR_CONTAINS (error,
                           MONGOC_ERROR_SERVER_SELECTION,
                           MONGOC_ERROR_SERVER_SELECTION_FAILURE,
-                          "No suitable servers found");
+                          "serverselectiontimeoutms");
 
    mongoc_uri_destroy (uri);
    mongoc_collection_drop (coll, &error);

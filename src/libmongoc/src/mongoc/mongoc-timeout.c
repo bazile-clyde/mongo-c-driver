@@ -86,6 +86,15 @@ mongoc_timeout_copy (const mongoc_timeout_t *timeout)
    return copy;
 }
 
+int64_t
+mongoc_timeout_compute_and_update_if_set (mongoc_timeout_t *timeout,
+                                          int64_t other)
+{
+   if (!mongoc_timeout_is_set (timeout))
+      return other;
+   return (timeout->timeout_ms < other) ? timeout->timeout_ms : other;
+}
+
 void
 mongoc_timeout_destroy (mongoc_timeout_t *timeout)
 {
