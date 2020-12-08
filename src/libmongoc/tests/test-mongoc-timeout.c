@@ -122,25 +122,32 @@ test_mongoc_timeout_get (void)
 }
 
 void
+_test_mongoc_timeout_copy (mongoc_timeout_t *expected)
+{
+   mongoc_timeout_t *actual = mongoc_timeout_copy (expected);
+
+   /* different memory addresses */
+   BSON_ASSERT (expected != actual);
+
+   BSON_ASSERT (mongoc_timeout_get_timeout_ms (actual) ==
+                mongoc_timeout_get_timeout_ms (expected));
+   BSON_ASSERT (mongoc_timeout_is_set (actual) ==
+                mongoc_timeout_is_set (expected));
+
+   mongoc_timeout_destroy (actual);
+}
+void
 test_mongoc_timeout_copy (void)
 {
    mongoc_timeout_t *expected = NULL;
-   mongoc_timeout_t *actual = NULL;
 
-   BSON_ASSERT (!mongoc_timeout_is_set (actual) &&
-                !mongoc_timeout_is_set (expected));
+   expected = mongoc_timeout_new ();
+   _test_mongoc_timeout_copy (expected);
+   mongoc_timeout_destroy (expected);
 
    expected = mongoc_timeout_new_timeout_int64 (1);
-   actual = mongoc_timeout_copy (expected);
-
-   BSON_ASSERT (expected != actual);
-   BSON_ASSERT (mongoc_timeout_get_timeout_ms (actual) ==
-                mongoc_timeout_get_timeout_ms (expected));
-   BSON_ASSERT (mongoc_timeout_is_set (actual) &&
-                mongoc_timeout_is_set (expected));
-
+   _test_mongoc_timeout_copy (expected);
    mongoc_timeout_destroy (expected);
-   mongoc_timeout_destroy (actual);
 }
 
 void
