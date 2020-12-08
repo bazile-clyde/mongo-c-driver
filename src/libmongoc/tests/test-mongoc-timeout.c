@@ -16,6 +16,7 @@
 
 #include "TestSuite.h"
 #include "test-libmongoc.h"
+#include "test-conveniences.h"
 
 #include <mongoc-timeout-private.h>
 #include <mongoc/mongoc-client-private.h>
@@ -288,6 +289,35 @@ test_mongoc_timeout_deprecation_socket_timeout_ms (void)
 }
 
 void
+test_mongoc_timeout_with_server_selection_timeout (void)
+{
+   const char *non_existent_host = "mongodb://localhost:12345/";
+   mongoc_uri_t *uri = NULL;
+   mongoc_client_t *client = NULL;
+   mongoc_collection_t *coll = NULL;
+   bson_t reply = BSON_INITIALIZER;
+   bson_error_t error;
+
+   uri = mongoc_uri_new (non_existent_host);
+   mongoc_uri_set_option_as_int32 (uri, MONGOC_URI_SERVERSELECTIONTIMEOUTMS, 1);
+
+   client = mongoc_client_new_from_uri (uri);
+   coll = mongoc_client_get_collection (client, "db", "coll");
+
+   BSON_ASSERT (!mongoc_collection_command_simple (
+      coll, tmp_bson ("{'ping': 1}"), NULL, &reply, &error));
+   ASSERT_ERROR_CONTAINS (error,
+                          MONGOC_ERROR_SERVER_SELECTION,
+                          MONGOC_ERROR_SERVER_SELECTION_FAILURE,
+                          "No suitable servers found");
+
+   mongoc_uri_destroy (uri);
+   mongoc_collection_drop (coll, &error);
+   mongoc_collection_destroy (coll);
+   mongoc_client_destroy (client);
+}
+
+void
 test_timeout_install (TestSuite *suite)
 {
    TestSuite_Add (suite, "/Timeout/new", test_mongoc_timeout_new);
@@ -314,4 +344,8 @@ test_timeout_install (TestSuite *suite)
    TestSuite_Add (suite,
                   "/Timeout/deprecation/socket_timeout_ms",
                   test_mongoc_timeout_deprecation_socket_timeout_ms);
+
+   TestSuite_Add (suite,
+                  "/Timeout/with/server_selection_timeout",
+                  test_mongoc_timeout_with_server_selection_timeout);
 }
