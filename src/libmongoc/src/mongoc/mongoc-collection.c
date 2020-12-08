@@ -166,7 +166,8 @@ _mongoc_collection_new (mongoc_client_t *client,
                         const char *collection,
                         const mongoc_read_prefs_t *read_prefs,
                         const mongoc_read_concern_t *read_concern,
-                        const mongoc_write_concern_t *write_concern)
+                        const mongoc_write_concern_t *write_concern,
+                        const mongoc_timeout_t *timeout)
 {
    mongoc_collection_t *col;
 
@@ -185,7 +186,8 @@ _mongoc_collection_new (mongoc_client_t *client,
                                     : mongoc_read_concern_new ();
    col->read_prefs = read_prefs ? mongoc_read_prefs_copy (read_prefs)
                                 : mongoc_read_prefs_new (MONGOC_READ_PRIMARY);
-   col->timeout = mongoc_timeout_new ();
+   col->timeout =
+      timeout ? mongoc_timeout_copy (timeout) : mongoc_timeout_new ();
 
    col->ns = bson_strdup_printf ("%s.%s", db, collection);
    col->db = bson_strdup (db);
@@ -284,7 +286,8 @@ mongoc_collection_copy (mongoc_collection_t *collection) /* IN */
                                    collection->collection,
                                    collection->read_prefs,
                                    collection->read_concern,
-                                   collection->write_concern));
+                                   collection->write_concern,
+                                   collection->timeout));
 }
 
 

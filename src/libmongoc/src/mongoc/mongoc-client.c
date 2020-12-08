@@ -1409,7 +1409,8 @@ mongoc_client_get_collection (mongoc_client_t *client,
                                   collection,
                                   client->read_prefs,
                                   client->read_concern,
-                                  client->write_concern);
+                                  client->write_concern,
+                                  client->timeout);
 }
 
 

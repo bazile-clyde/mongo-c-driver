@@ -192,7 +192,7 @@ test_mongoc_timeout_set_on_collection (void)
 
    client = mongoc_client_new (NULL);
    collection =
-      _mongoc_collection_new (client, "test", "test", NULL, NULL, NULL);
+      _mongoc_collection_new (client, "test", "test", NULL, NULL, NULL, NULL);
 
    BSON_ASSERT (!mongoc_timeout_is_set (collection->timeout));
    BSON_ASSERT (DEFAULT_TIMEOUT == mongoc_collection_get_timeout (collection));
@@ -204,13 +204,6 @@ test_mongoc_timeout_set_on_collection (void)
 
    mongoc_collection_destroy (collection);
    mongoc_client_destroy (client);
-}
-
-void
-test_mongoc_timeout_collection_inherit_from_database (void)
-{
-   // TODO: we don't need a database object to create a collection. So how do we
-   //  inherit properties from the database?
 }
 
 void
@@ -229,6 +222,41 @@ test_mongoc_timeout_database_inherit_from_client (void)
 
    mongoc_database_destroy (database);
    mongoc_client_destroy (client);
+}
+
+void
+test_mongoc_timeout_collection_inherit_from_database (void)
+{
+   mongoc_client_t *client = NULL;
+   mongoc_database_t *database = NULL;
+   mongoc_collection_t *collection = NULL;
+   int64_t expected;
+
+   client = mongoc_client_new (NULL);
+   BSON_ASSERT (!mongoc_timeout_is_set (client->timeout));
+
+   expected = 1;
+   database = mongoc_client_get_database (client, "test");
+   mongoc_database_set_timeout (database, expected);
+   BSON_ASSERT (mongoc_timeout_is_set (database->timeout));
+   BSON_ASSERT (expected == mongoc_database_get_timeout (database));
+
+   collection = mongoc_database_get_collection (database, "test");
+   BSON_ASSERT (mongoc_timeout_is_set (collection->timeout));
+   BSON_ASSERT (expected == mongoc_collection_get_timeout (collection));
+
+   mongoc_database_destroy (database);
+   mongoc_client_destroy (client);
+}
+
+void
+test_mongoc_timeout_deprecation_socket_timeout_ms (void)
+{
+   capture_logs (true);
+   ASSERT (
+      !mongoc_uri_new ("mongodb://user@localhost/?" MONGOC_URI_SOCKETTIMEOUTMS
+                       "=1&" MONGOC_URI_TIMEOUTMS "=1"));
+   clear_captured_logs ();
 }
 
 void
@@ -254,4 +282,8 @@ test_timeout_install (TestSuite *suite)
    TestSuite_Add (suite,
                   "/Timeout/inheritance/collection",
                   test_mongoc_timeout_collection_inherit_from_database);
+
+   TestSuite_Add (suite,
+                  "/Timeout/deprecation/socket_timeout_ms",
+                  test_mongoc_timeout_deprecation_socket_timeout_ms);
 }

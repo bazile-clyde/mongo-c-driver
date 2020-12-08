@@ -20,7 +20,7 @@
 typedef struct _mongoc_timeout_t {
    bool is_set;
    int64_t timeout_ms;
-} mongoc_timeout_t ;
+} mongoc_timeout_t;
 
 int64_t
 mongoc_timeout_get_timeout_ms (const mongoc_timeout_t *timeout)
@@ -75,7 +75,7 @@ mongoc_timeout_new_int64 (int64_t timeout_ms)
 }
 
 mongoc_timeout_t *
-mongoc_timeout_copy (mongoc_timeout_t *timeout)
+mongoc_timeout_copy (const mongoc_timeout_t *timeout)
 {
    BSON_ASSERT (timeout);
 

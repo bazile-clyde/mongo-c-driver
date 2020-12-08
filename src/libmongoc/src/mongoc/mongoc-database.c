@@ -995,7 +995,8 @@ mongoc_database_create_collection (mongoc_database_t *database,
                                            name,
                                            database->read_prefs,
                                            database->read_concern,
-                                           database->write_concern);
+                                           database->write_concern,
+                                           database->timeout);
    }
 
    bson_destroy (&cmd);
@@ -1016,7 +1017,8 @@ mongoc_database_get_collection (mongoc_database_t *database,
                                   collection,
                                   database->read_prefs,
                                   database->read_concern,
-                                  database->write_concern);
+                                  database->write_concern,
+                                  database->timeout);
 }
 
 
