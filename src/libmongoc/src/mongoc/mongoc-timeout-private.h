@@ -27,7 +27,7 @@ mongoc_timeout_t *
 mongoc_timeout_new ();
 
 mongoc_timeout_t *
-mongoc_timeout_new_int64 (int64_t timeout_ms);
+mongoc_timeout_new_timeout_int64 (int64_t timeout_ms);
 
 mongoc_timeout_t *
 mongoc_timeout_copy (const mongoc_timeout_t *timeout);

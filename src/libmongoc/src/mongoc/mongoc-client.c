@@ -1119,6 +1119,7 @@ _mongoc_client_new_from_uri (mongoc_topology_t *topology)
    const mongoc_read_prefs_t *read_prefs;
    const mongoc_read_concern_t *read_concern;
    const mongoc_write_concern_t *write_concern;
+   const mongoc_timeout_t *timeout;
    const char *appname;
 
    BSON_ASSERT (topology);
@@ -1149,7 +1150,8 @@ _mongoc_client_new_from_uri (mongoc_topology_t *topology)
    read_prefs = mongoc_uri_get_read_prefs_t (client->uri);
    client->read_prefs = mongoc_read_prefs_copy (read_prefs);
 
-   client->timeout = mongoc_timeout_new ();
+   timeout = mongoc_uri_get_timeout_t (client->uri);
+   client->timeout = mongoc_timeout_copy (timeout);
 
    appname =
       mongoc_uri_get_option_as_utf8 (client->uri, MONGOC_URI_APPNAME, NULL);
@@ -3081,12 +3083,24 @@ mongoc_client_enable_auto_encryption (mongoc_client_t *client,
    }
    return _mongoc_cse_client_enable_auto_encryption (client, opts, error);
 }
-void
-mongoc_client_set_timeout (mongoc_client_t *client, int64_t timeout_ms)
+
+bool
+mongoc_client_set_timeout (mongoc_client_t *client,
+                           int64_t timeout_ms,
+                           bson_error_t *error)
 {
    BSON_ASSERT (client);
 
+   if (mongoc_uri_has_deprecated_timeouts (client->uri)) {
+      bson_set_error (error,
+                      MONGOC_ERROR_CLIENT,
+                      MONGOC_ERROR_TIMEOUT_DEPRECATED_ARG,
+                      "Cannot 'timeout' with deprecated timeout options");
+      return false;
+   }
+
    mongoc_timeout_set_timeout_ms (client->timeout, timeout_ms);
+   return true;
 }
 
 int64_t

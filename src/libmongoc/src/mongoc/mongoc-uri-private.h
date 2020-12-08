@@ -22,6 +22,7 @@
 #include "mongoc-uri.h"
 #include "mongoc-scram-private.h"
 #include "mongoc-crypto-private.h"
+#include "mongoc-timeout-private.h"
 
 
 BSON_BEGIN_DECLS
@@ -75,6 +76,12 @@ _mongoc_uri_init_scram (const mongoc_uri_t *uri,
                         mongoc_scram_t *scram,
                         mongoc_crypto_hash_algorithm_t algo);
 #endif
+
+bool
+mongoc_uri_has_deprecated_timeouts (mongoc_uri_t *uri);
+
+mongoc_timeout_t *
+mongoc_uri_get_timeout_t (const mongoc_uri_t *uri);
 
 BSON_END_DECLS
 

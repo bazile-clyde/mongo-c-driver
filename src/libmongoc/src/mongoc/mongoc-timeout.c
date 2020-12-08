@@ -64,7 +64,7 @@ mongoc_timeout_new ()
 }
 
 mongoc_timeout_t *
-mongoc_timeout_new_int64 (int64_t timeout_ms)
+mongoc_timeout_new_timeout_int64 (int64_t timeout_ms)
 {
    mongoc_timeout_t *timeout = mongoc_timeout_new ();
    if (_mongoc_timeout_set_timeout_ms (timeout, timeout_ms))
@@ -79,7 +79,11 @@ mongoc_timeout_copy (const mongoc_timeout_t *timeout)
 {
    BSON_ASSERT (timeout);
 
-   return mongoc_timeout_new_int64 (timeout->timeout_ms);
+   mongoc_timeout_t *copy = mongoc_timeout_new ();
+   copy->timeout_ms = timeout->timeout_ms;
+   copy->is_set = timeout->is_set;
+
+   return copy;
 }
 
 void

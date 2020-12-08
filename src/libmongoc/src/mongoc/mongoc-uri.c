@@ -1266,13 +1266,10 @@ mongoc_uri_parse_options (mongoc_uri_t *uri,
    return true;
 }
 
-static bool
-_check_timeout_ms_not_used_with_deprecated_timeouts (mongoc_uri_t *uri,
-                                                     bson_error_t *error)
+bool
+mongoc_uri_has_deprecated_timeouts (mongoc_uri_t *uri)
 {
-   if (!mongoc_timeout_is_set (uri->timeout))
-      return true;
-   return !bson_has_field (&uri->options, MONGOC_URI_SOCKETTIMEOUTMS);
+   return bson_has_field (&uri->options, MONGOC_URI_SOCKETTIMEOUTMS);
 }
 
 static bool
@@ -1729,6 +1726,13 @@ _mongoc_set_timeout (mongoc_uri_t *uri, bson_error_t *error)
          return false;
       }
 
+      if (mongoc_uri_has_deprecated_timeouts (uri)) {
+         MONGOC_URI_ERROR (error,
+                           "Deprecated timeouts cannot be used with '%s'",
+                           MONGOC_URI_TIMEOUTMS);
+         return false;
+      }
+
       int64_t timeout_ms = bson_iter_as_int64 (&iter);
       mongoc_timeout_set_timeout_ms (uri->timeout, timeout_ms);
    }
@@ -1914,8 +1918,7 @@ mongoc_uri_new_with_error (const char *uri_string, bson_error_t *error)
 
    uri->str = bson_strdup (uri_string);
 
-   if (!(_mongoc_set_timeout (uri, error) &&
-         _check_timeout_ms_not_used_with_deprecated_timeouts (uri, error))) {
+   if (!_mongoc_set_timeout (uri, error)) {
       mongoc_uri_destroy (uri);
       return NULL;
    }
@@ -2283,6 +2286,7 @@ mongoc_uri_copy (const mongoc_uri_t *uri)
    copy->read_prefs = mongoc_read_prefs_copy (uri->read_prefs);
    copy->read_concern = mongoc_read_concern_copy (uri->read_concern);
    copy->write_concern = mongoc_write_concern_copy (uri->write_concern);
+   copy->timeout = mongoc_timeout_copy (uri->timeout);
 
    LL_FOREACH (uri->hosts, iter)
    {
@@ -2387,6 +2391,14 @@ mongoc_uri_get_read_prefs_t (const mongoc_uri_t *uri) /* IN */
    BSON_ASSERT (uri);
 
    return uri->read_prefs;
+}
+
+int64_t
+mongoc_uri_get_timeout_ms (const mongoc_uri_t *uri) /* IN */
+{
+   BSON_ASSERT (uri);
+
+   return mongoc_timeout_get_timeout_ms (uri->timeout);
 }
 
 
@@ -3145,5 +3157,11 @@ _mongoc_uri_init_scram (const mongoc_uri_t *uri,
 
    _mongoc_scram_set_pass (scram, mongoc_uri_get_password (uri));
    _mongoc_scram_set_user (scram, mongoc_uri_get_username (uri));
+}
+
+mongoc_timeout_t *
+mongoc_uri_get_timeout_t (const mongoc_uri_t *uri)
+{
+   return uri->timeout;
 }
 #endif

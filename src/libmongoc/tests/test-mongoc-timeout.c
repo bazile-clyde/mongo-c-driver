@@ -28,7 +28,7 @@ _test_mongoc_timeout_new_success (int64_t expected)
 {
    mongoc_timeout_t *timeout;
 
-   timeout = mongoc_timeout_new_int64 (expected);
+   timeout = mongoc_timeout_new_timeout_int64 (expected);
    BSON_ASSERT (mongoc_timeout_is_set (timeout));
    BSON_ASSERT (expected == mongoc_timeout_get_timeout_ms (timeout));
    mongoc_timeout_destroy (timeout);
@@ -38,7 +38,7 @@ void
 _test_mongoc_timeout_new_failure (int64_t try, const char *err_msg)
 {
    capture_logs (true);
-   BSON_ASSERT (!mongoc_timeout_new_int64 (try));
+   BSON_ASSERT (!mongoc_timeout_new_timeout_int64 (try));
    ASSERT_CAPTURED_LOG ("mongoc", MONGOC_LOG_LEVEL_ERROR, err_msg);
    clear_captured_logs ();
 }
@@ -130,9 +130,10 @@ test_mongoc_timeout_copy (void)
    BSON_ASSERT (!mongoc_timeout_is_set (actual) &&
                 !mongoc_timeout_is_set (expected));
 
-   expected = mongoc_timeout_new_int64 (1);
+   expected = mongoc_timeout_new_timeout_int64 (1);
    actual = mongoc_timeout_copy (expected);
 
+   BSON_ASSERT (expected != actual);
    BSON_ASSERT (mongoc_timeout_get_timeout_ms (actual) ==
                 mongoc_timeout_get_timeout_ms (expected));
    BSON_ASSERT (mongoc_timeout_is_set (actual) &&
@@ -146,6 +147,7 @@ void
 test_mongoc_timeout_set_on_client (void)
 {
    mongoc_client_t *client = NULL;
+   bson_error_t error;
    int64_t expected;
 
    client = mongoc_client_new (NULL);
@@ -154,7 +156,7 @@ test_mongoc_timeout_set_on_client (void)
    BSON_ASSERT (DEFAULT_TIMEOUT == mongoc_client_get_timeout (client));
 
    expected = 1;
-   mongoc_client_set_timeout (client, expected);
+   BSON_ASSERT (mongoc_client_set_timeout (client, expected, &error));
    BSON_ASSERT (mongoc_timeout_is_set (client->timeout));
    BSON_ASSERT (expected == mongoc_client_get_timeout (client));
 
@@ -211,10 +213,11 @@ test_mongoc_timeout_database_inherit_from_client (void)
 {
    mongoc_client_t *client = NULL;
    mongoc_database_t *database = NULL;
+   bson_error_t error;
    int64_t expected = 1;
 
    client = mongoc_client_new (NULL);
-   mongoc_client_set_timeout (client, expected);
+   BSON_ASSERT (mongoc_client_set_timeout (client, expected, &error));
    BSON_ASSERT (expected == mongoc_client_get_timeout (client));
 
    database = _mongoc_database_new (client, "test", NULL, NULL, NULL);
@@ -253,11 +256,28 @@ test_mongoc_timeout_collection_inherit_from_database (void)
 void
 test_mongoc_timeout_deprecation_socket_timeout_ms (void)
 {
+   mongoc_uri_t *uri = NULL;
+   mongoc_client_t *client = NULL;
+   bson_error_t error;
+
    capture_logs (true);
    ASSERT (
       !mongoc_uri_new ("mongodb://user@localhost/?" MONGOC_URI_SOCKETTIMEOUTMS
                        "=1&" MONGOC_URI_TIMEOUTMS "=1"));
    clear_captured_logs ();
+
+   ASSERT (uri = mongoc_uri_new (
+              "mongodb://user@localhost/?" MONGOC_URI_SOCKETTIMEOUTMS "=1"));
+   client = mongoc_client_new_from_uri (uri);
+   BSON_ASSERT (!mongoc_client_set_timeout (client, 1, &error));
+   ASSERT_ERROR_CONTAINS (error,
+                          MONGOC_ERROR_CLIENT,
+                          MONGOC_ERROR_TIMEOUT_DEPRECATED_ARG,
+                          "Cannot 'timeout' with deprecated timeout options");
+
+
+   mongoc_uri_destroy (uri);
+   mongoc_client_destroy (client);
 }
 
 void
