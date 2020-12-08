@@ -2251,6 +2251,7 @@ mongoc_uri_destroy (mongoc_uri_t *uri)
       mongoc_read_prefs_destroy (uri->read_prefs);
       mongoc_read_concern_destroy (uri->read_concern);
       mongoc_write_concern_destroy (uri->write_concern);
+      mongoc_timeout_destroy (uri->timeout);
 
       if (uri->password) {
          bson_zero_free (uri->password, strlen (uri->password));

@@ -245,6 +245,7 @@ test_mongoc_timeout_collection_inherit_from_database (void)
    BSON_ASSERT (mongoc_timeout_is_set (collection->timeout));
    BSON_ASSERT (expected == mongoc_collection_get_timeout (collection));
 
+   mongoc_collection_destroy (collection);
    mongoc_database_destroy (database);
    mongoc_client_destroy (client);
 }
