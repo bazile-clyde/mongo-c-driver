@@ -300,7 +300,7 @@ test_mongoc_timeout_with_server_selection_timeout (void)
 
    uri = mongoc_uri_new (non_existent_host);
    mongoc_uri_set_option_as_int32 (
-      uri, MONGOC_URI_SERVERSELECTIONTIMEOUTMS, 100);
+      uri, MONGOC_URI_SERVERSELECTIONTIMEOUTMS, 100000);
    mongoc_uri_set_option_as_bool (
       uri, MONGOC_URI_SERVERSELECTIONTRYONCE, false);
    mongoc_uri_set_option_as_int64 (uri, MONGOC_URI_TIMEOUTMS, 50);

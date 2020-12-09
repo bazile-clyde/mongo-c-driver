@@ -104,6 +104,8 @@ typedef struct _mongoc_topology_t {
    mongoc_set_t *server_monitors;
    mongoc_set_t *rtt_monitors;
    bson_mutex_t apm_mutex;
+
+   mongoc_timeout_t *timeout;
 } mongoc_topology_t;
 
 mongoc_topology_t *
