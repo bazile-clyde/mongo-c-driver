@@ -878,6 +878,7 @@ _mongoc_server_selection_error (mongoc_timeout_t *timeout,
    int code = mongoc_timeout_is_set (timeout)
                  ? MONGOC_ERROR_TIMEOUT
                  : MONGOC_ERROR_SERVER_SELECTION_FAILURE;
+
    if (scanner_error && scanner_error->code) {
       bson_set_error (error,
                       MONGOC_ERROR_SERVER_SELECTION,
