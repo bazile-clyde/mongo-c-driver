@@ -326,8 +326,71 @@ test_mongoc_timeout_with_server_selection_timeout (void)
 }
 
 void
+_disable_fail_point_command (mongoc_client_t *client)
+{
+   bson_error_t error;
+   bson_t reply = BSON_INITIALIZER;
+   const bson_t *cmd = tmp_bson ("{'configureFailPoint': 'failCommand',"
+                                 " 'mode': 'off'}");
+
+   ASSERT_OR_PRINT (
+      mongoc_client_command_simple (client, "admin", cmd, NULL, &reply, &error),
+      error);
+
+   bson_destroy (&reply);
+}
+
+void
+_enable_fail_point_command (mongoc_client_t *client,
+                            int times,
+                            int code,
+                            const char *command)
+{
+   bson_error_t error;
+   bson_t reply = BSON_INITIALIZER;
+   const bson_t *cmd =
+      tmp_bson ("{'configureFailPoint': 'failCommand',"
+                " 'mode': {'times': %d},"
+                " 'data': {'errorCode': %d, 'failCommands': ['%s']}}",
+                times,
+                code,
+                command);
+
+   ASSERT_OR_PRINT (
+      mongoc_client_command_simple (client, "admin", cmd, NULL, &reply, &error),
+      error);
+   bson_destroy (&reply);
+}
+
+void
 test_mongoc_timeout_with_retryable_read_timeout (void)
 {
+   mongoc_uri_t *uri;
+   mongoc_client_t *client;
+   mongoc_collection_t *coll;
+   bson_t reply;
+   bson_error_t error;
+
+   uri = test_framework_get_uri ();
+   mongoc_uri_set_option_as_bool (uri, "retryReads", true);
+
+   client = mongoc_client_new_from_uri (uri);
+
+   _disable_fail_point_command (client);
+   _enable_fail_point_command (client, 100, 10107, "ping");
+
+   coll = mongoc_client_get_collection (client, "db", "coll");
+
+   BSON_ASSERT (!mongoc_collection_command_simple (
+      coll, tmp_bson ("{'ping': 1}"), NULL, &reply, &error));
+   ASSERT_ERROR_CONTAINS (error, MONGOC_ERROR_QUERY, 10107, "Failing command");
+
+   _disable_fail_point_command (client);
+
+   bson_destroy (&reply);
+   mongoc_uri_destroy (uri);
+   mongoc_collection_destroy (coll);
+   mongoc_client_destroy (client);
 }
 void
 test_timeout_install (TestSuite *suite)
