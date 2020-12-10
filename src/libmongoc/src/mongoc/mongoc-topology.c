@@ -870,23 +870,23 @@ mongoc_topology_compatible (const mongoc_topology_description_t *td,
 
 
 static void
-_mongoc_server_selection_error (const char *msg,
+_mongoc_server_selection_error (mongoc_timeout_t *timeout,
+                                const char *msg,
                                 const bson_error_t *scanner_error,
                                 bson_error_t *error)
 {
+   int code = mongoc_timeout_is_set (timeout)
+                 ? MONGOC_ERROR_TIMEOUT
+                 : MONGOC_ERROR_SERVER_SELECTION_FAILURE;
    if (scanner_error && scanner_error->code) {
       bson_set_error (error,
                       MONGOC_ERROR_SERVER_SELECTION,
-                      MONGOC_ERROR_SERVER_SELECTION_FAILURE,
+                      code,
                       "%s: %s",
                       msg,
                       scanner_error->message);
    } else {
-      bson_set_error (error,
-                      MONGOC_ERROR_SERVER_SELECTION,
-                      MONGOC_ERROR_SERVER_SELECTION_FAILURE,
-                      "%s",
-                      msg);
+      bson_set_error (error, MONGOC_ERROR_SERVER_SELECTION, code, "%s", msg);
    }
 }
 
@@ -1000,8 +1000,8 @@ mongoc_topology_select_server_id (mongoc_topology_t *topology,
    loop_start = loop_end = bson_get_monotonic_time ();
    computed_server_selection_timeout =
       mongoc_timeout_compute_and_update_if_set (
-         topology->timeout, topology->server_selection_timeout_msec * 1000);
-   expire_at = loop_start + computed_server_selection_timeout;
+         topology->timeout, topology->server_selection_timeout_msec);
+   expire_at = loop_start + computed_server_selection_timeout * 1000;
 
    if (topology->single_threaded) {
       _mongoc_topology_description_monitor_opening (&topology->description);
@@ -1023,6 +1023,7 @@ mongoc_topology_select_server_id (mongoc_topology_t *topology,
             if (scan_ready > expire_at && !try_once) {
                /* selection timeout will expire before min heartbeat passes */
                _mongoc_server_selection_error (
+                  topology->timeout,
                   "No suitable servers found: "
                   "`serverselectiontimeoutms` timed out",
                   &scanner_error,
@@ -1036,6 +1037,7 @@ mongoc_topology_select_server_id (mongoc_topology_t *topology,
                if (try_once &&
                    mongoc_topology_scanner_in_cooldown (ts, scan_ready)) {
                   _mongoc_server_selection_error (
+                     topology->timeout,
                      "No servers yet eligible for rescan",
                      &scanner_error,
                      error);
@@ -1069,6 +1071,7 @@ mongoc_topology_select_server_id (mongoc_topology_t *topology,
          if (try_once) {
             if (tried_once) {
                _mongoc_server_selection_error (
+                  topology->timeout,
                   "No suitable servers found (`serverSelectionTryOnce` set)",
                   &scanner_error,
                   error);
@@ -1081,7 +1084,7 @@ mongoc_topology_select_server_id (mongoc_topology_t *topology,
             if (loop_end > expire_at) {
                /* no time left in server_selection_timeout_msec */
                _mongoc_server_selection_error (
-                  timeout_msg, &scanner_error, error);
+                  topology->timeout, timeout_msg, &scanner_error, error);
 
                return 0;
             }
@@ -1125,7 +1128,8 @@ mongoc_topology_select_server_id (mongoc_topology_t *topology,
          if (r == ETIMEDOUT) {
 #endif
             /* handle timeouts */
-            _mongoc_server_selection_error (timeout_msg, &scanner_error, error);
+            _mongoc_server_selection_error (
+               topology->timeout, timeout_msg, &scanner_error, error);
 
             return 0;
          } else if (r) {
@@ -1141,7 +1145,8 @@ mongoc_topology_select_server_id (mongoc_topology_t *topology,
          loop_start = bson_get_monotonic_time ();
 
          if (loop_start > expire_at) {
-            _mongoc_server_selection_error (timeout_msg, &scanner_error, error);
+            _mongoc_server_selection_error (
+               topology->timeout, timeout_msg, &scanner_error, error);
 
             return 0;
          }

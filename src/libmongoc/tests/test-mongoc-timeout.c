@@ -261,32 +261,36 @@ test_mongoc_timeout_collection_inherit_from_database (void)
    mongoc_client_destroy (client);
 }
 
-void
-test_mongoc_timeout_deprecation_socket_timeout_ms (void)
-{
-   mongoc_uri_t *uri = NULL;
-   mongoc_client_t *client = NULL;
-   bson_error_t error;
-
-   capture_logs (true);
-   ASSERT (
-      !mongoc_uri_new ("mongodb://user@localhost/?" MONGOC_URI_SOCKETTIMEOUTMS
-                       "=1&" MONGOC_URI_TIMEOUTMS "=1"));
-   clear_captured_logs ();
-
-   ASSERT (uri = mongoc_uri_new (
-              "mongodb://user@localhost/?" MONGOC_URI_SOCKETTIMEOUTMS "=1"));
-   client = mongoc_client_new_from_uri (uri);
-   BSON_ASSERT (!mongoc_client_set_timeout (client, 1, &error));
-   ASSERT_ERROR_CONTAINS (error,
-                          MONGOC_ERROR_CLIENT,
-                          MONGOC_ERROR_TIMEOUT_DEPRECATED_ARG,
-                          "Cannot 'timeout' with deprecated timeout options");
-
-
-   mongoc_uri_destroy (uri);
-   mongoc_client_destroy (client);
-}
+// This should silently override instead of error
+//
+// void
+// test_mongoc_timeout_deprecation_socket_timeout_ms (void)
+// {
+//    mongoc_uri_t *uri = NULL;
+//    mongoc_client_t *client = NULL;
+//    bson_error_t error;
+//
+//    capture_logs (true);
+//    ASSERT (
+//       !mongoc_uri_new ("mongodb://user@localhost/?"
+//       MONGOC_URI_SOCKETTIMEOUTMS
+//                        "=1&" MONGOC_URI_TIMEOUTMS "=1"));
+//    clear_captured_logs ();
+//
+//    ASSERT (uri = mongoc_uri_new (
+//               "mongodb://user@localhost/?" MONGOC_URI_SOCKETTIMEOUTMS "=1"));
+//    client = mongoc_client_new_from_uri (uri);
+//    BSON_ASSERT (!mongoc_client_set_timeout (client, 1, &error));
+//    ASSERT_ERROR_CONTAINS (error,
+//                           MONGOC_ERROR_CLIENT,
+//                           MONGOC_ERROR_TIMEOUT_DEPRECATED_ARG,
+//                           "Cannot 'timeout' with deprecated timeout
+//                           options");
+//
+//
+//    mongoc_uri_destroy (uri);
+//    mongoc_client_destroy (client);
+// }
 
 void
 test_mongoc_timeout_with_server_selection_timeout (void)
@@ -312,7 +316,7 @@ test_mongoc_timeout_with_server_selection_timeout (void)
       coll, tmp_bson ("{'ping': 1}"), NULL, &reply, &error));
    ASSERT_ERROR_CONTAINS (error,
                           MONGOC_ERROR_SERVER_SELECTION,
-                          MONGOC_ERROR_SERVER_SELECTION_FAILURE,
+                          MONGOC_ERROR_TIMEOUT,
                           "serverselectiontimeoutms");
 
    mongoc_uri_destroy (uri);
@@ -345,9 +349,9 @@ test_timeout_install (TestSuite *suite)
                   "/Timeout/inheritance/collection",
                   test_mongoc_timeout_collection_inherit_from_database);
 
-   TestSuite_Add (suite,
-                  "/Timeout/deprecation/socket_timeout_ms",
-                  test_mongoc_timeout_deprecation_socket_timeout_ms);
+   //  TestSuite_Add (suite,
+   //                 "/Timeout/deprecation/socket_timeout_ms",
+   //                 test_mongoc_timeout_deprecation_socket_timeout_ms);
 
    TestSuite_Add (suite,
                   "/Timeout/with/server_selection_timeout",

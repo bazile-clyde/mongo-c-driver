@@ -3091,14 +3091,6 @@ mongoc_client_set_timeout (mongoc_client_t *client,
 {
    BSON_ASSERT (client);
 
-   if (mongoc_uri_has_deprecated_timeouts (client->uri)) {
-      bson_set_error (error,
-                      MONGOC_ERROR_CLIENT,
-                      MONGOC_ERROR_TIMEOUT_DEPRECATED_ARG,
-                      "Cannot 'timeout' with deprecated timeout options");
-      return false;
-   }
-
    mongoc_timeout_set_timeout_ms (client->timeout, timeout_ms);
    return true;
 }
