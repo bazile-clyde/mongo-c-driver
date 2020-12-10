@@ -326,6 +326,10 @@ test_mongoc_timeout_with_server_selection_timeout (void)
 }
 
 void
+test_mongoc_timeout_with_retryable_read_timeout (void)
+{
+}
+void
 test_timeout_install (TestSuite *suite)
 {
    TestSuite_Add (suite, "/Timeout/new", test_mongoc_timeout_new);
@@ -356,4 +360,7 @@ test_timeout_install (TestSuite *suite)
    TestSuite_Add (suite,
                   "/Timeout/with/server_selection_timeout",
                   test_mongoc_timeout_with_server_selection_timeout);
+   TestSuite_Add (suite,
+                  "/Timeout/with/retryable_read_timeout",
+                  test_mongoc_timeout_with_retryable_read_timeout);
 }
