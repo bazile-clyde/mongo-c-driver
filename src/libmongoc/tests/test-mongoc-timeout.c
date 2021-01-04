@@ -21,6 +21,7 @@
 #include <mongoc-timeout-private.h>
 #include <mongoc/mongoc-client-private.h>
 #include <mongoc/mongoc-database-private.h>
+#include <mongoc/mongoc-error-private.h>
 
 const int DEFAULT_TIMEOUT = 0;
 
@@ -368,26 +369,27 @@ test_mongoc_timeout_with_retryable_read_timeout (void)
    mongoc_uri_t *uri;
    mongoc_client_t *client;
    mongoc_collection_t *coll;
-   bson_t reply;
+   bson_t reply = BSON_INITIALIZER;
    bson_error_t error;
 
    uri = test_framework_get_uri ();
    mongoc_uri_set_option_as_bool (uri, "retryReads", true);
 
    client = mongoc_client_new_from_uri (uri);
+   mongoc_client_set_timeout(client, 50, NULL);
+   BSON_ASSERT(mongoc_timeout_get_timeout_ms(client->timeout) == 50);
 
    _disable_fail_point_command (client);
-   _enable_fail_point_command (client, 100, 10107, "ping");
+   _enable_fail_point_command (client, 1000, MONGOC_SERVER_ERR_NOTMASTER, "aggregate");
 
    coll = mongoc_client_get_collection (client, "db", "coll");
 
-   BSON_ASSERT (!mongoc_collection_command_simple (
-      coll, tmp_bson ("{'ping': 1}"), NULL, &reply, &error));
-   ASSERT_ERROR_CONTAINS (error, MONGOC_ERROR_QUERY, 10107, "Failing command");
+   BSON_ASSERT (-1 == mongoc_collection_count_documents(
+      coll, tmp_bson("{}"), NULL, NULL, &reply, &error));
+    ASSERT_ERROR_CONTAINS (error, MONGOC_ERROR_QUERY, MONGOC_SERVER_ERR_NOTMASTER, "Failing command");
 
    _disable_fail_point_command (client);
 
-   bson_destroy (&reply);
    mongoc_uri_destroy (uri);
    mongoc_collection_destroy (coll);
    mongoc_client_destroy (client);
