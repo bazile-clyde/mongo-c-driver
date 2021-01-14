@@ -21,7 +21,6 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include <bson/bson.h>
 
 typedef struct _mongoc_timeout_t mongoc_timeout_t;
 
@@ -45,9 +44,5 @@ mongoc_timeout_set_timeout_ms (mongoc_timeout_t *timeout, int64_t timeout_ms);
 
 bool
 mongoc_timeout_is_set (const mongoc_timeout_t *timeout);
-
-int64_t
-mongoc_timeout_compute_and_update_if_set (mongoc_timeout_t *timeout,
-                                          int64_t other);
 
 #endif /* MONGOC_TIMEOUT_PRIVATE_H */

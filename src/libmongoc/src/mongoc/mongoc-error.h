@@ -122,9 +122,7 @@ typedef enum {
 
    /* An error related to initializing client side encryption. */
    MONGOC_ERROR_CLIENT_INVALID_ENCRYPTION_STATE,
-   MONGOC_ERROR_CLIENT_INVALID_ENCRYPTION_ARG,
-
-   MONGOC_ERROR_TIMEOUT
+   MONGOC_ERROR_CLIENT_INVALID_ENCRYPTION_ARG
 } mongoc_error_code_t;
 
 MONGOC_EXPORT (bool)

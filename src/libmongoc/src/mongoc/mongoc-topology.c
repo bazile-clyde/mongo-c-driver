@@ -231,7 +231,6 @@ mongoc_topology_new (const mongoc_uri_t *uri, bool single_threaded)
    mongoc_rr_data_t rr_data;
    bool has_directconnection;
    bool directconnection;
-   int64_t timeout_ms;
 
    BSON_ASSERT (uri);
    topology_valid = false;
@@ -301,12 +300,6 @@ mongoc_topology_new (const mongoc_uri_t *uri, bool single_threaded)
       mongoc_uri_get_option_as_int32 (topology->uri,
                                       MONGOC_URI_CONNECTTIMEOUTMS,
                                       MONGOC_DEFAULT_CONNECTTIMEOUTMS);
-
-   timeout_ms =
-      mongoc_uri_get_option_as_int64 (topology->uri, MONGOC_URI_TIMEOUTMS, -1);
-   topology->timeout = timeout_ms == -1
-                          ? mongoc_timeout_new ()
-                          : mongoc_timeout_new_timeout_int64 (timeout_ms);
 
    topology->scanner_state = MONGOC_TOPOLOGY_SCANNER_OFF;
    topology->scanner =
@@ -538,7 +531,6 @@ mongoc_topology_destroy (mongoc_topology_t *topology)
    mongoc_uri_destroy (topology->uri);
    mongoc_topology_description_destroy (&topology->description);
    mongoc_topology_scanner_destroy (topology->scanner);
-   mongoc_timeout_destroy (topology->timeout);
 
    /* If we are single-threaded, the client will try to call
       _mongoc_topology_end_sessions_cmd when it dies. This removes
@@ -592,9 +584,9 @@ mongoc_topology_apply_scanned_srv_hosts (mongoc_uri_t *uri,
    bool had_valid_hosts = false;
 
    /* Validate that the hosts have a matching domain.
-    * If validation fails, log it.
-    * If no valid hosts remain, do not update the topology description.
-    */
+   * If validation fails, log it.
+   * If no valid hosts remain, do not update the topology description.
+   */
    LL_FOREACH (hosts, host)
    {
       if (mongoc_uri_validate_srv_result (uri, host->host, error)) {
@@ -625,21 +617,20 @@ mongoc_topology_apply_scanned_srv_hosts (mongoc_uri_t *uri,
  *--------------------------------------------------------------------------
  *
  * mongoc_topology_should_rescan_srv --
- *
+ * 
  *      Checks whether it is valid to rescan SRV records on the topology.
  *      Namely, that the topology type is Sharded or Unknown, and that
  *      the topology URI was configured with SRV.
- *
+ * 
  *      If this returns false, caller can stop scanning SRV records
  *      and does not need to try again in the future.
- *
+ * 
  *      NOTE: this method expects @topology's mutex to be locked on entry.
  *
  * --------------------------------------------------------------------------
  */
 bool
-mongoc_topology_should_rescan_srv (mongoc_topology_t *topology)
-{
+mongoc_topology_should_rescan_srv (mongoc_topology_t *topology) {
    const char *service;
 
    MONGOC_DEBUG_ASSERT (COMMON_PREFIX (mutex_is_locked) (&topology->mutex));
@@ -767,8 +758,7 @@ mongoc_topology_scan_once (mongoc_topology_t *topology, bool obey_cooldown)
    MONGOC_DEBUG_ASSERT (COMMON_PREFIX (mutex_is_locked) (&topology->mutex));
 
    if (mongoc_topology_should_rescan_srv (topology)) {
-      /* Prior to scanning hosts, update the list of SRV hosts, if applicable.
-       */
+      /* Prior to scanning hosts, update the list of SRV hosts, if applicable. */
       mongoc_topology_rescan_srv (topology);
    }
 
@@ -870,24 +860,23 @@ mongoc_topology_compatible (const mongoc_topology_description_t *td,
 
 
 static void
-_mongoc_server_selection_error (mongoc_timeout_t *timeout,
-                                const char *msg,
+_mongoc_server_selection_error (const char *msg,
                                 const bson_error_t *scanner_error,
                                 bson_error_t *error)
 {
-   int code = mongoc_timeout_is_set (timeout)
-                 ? MONGOC_ERROR_TIMEOUT
-                 : MONGOC_ERROR_SERVER_SELECTION_FAILURE;
-
    if (scanner_error && scanner_error->code) {
       bson_set_error (error,
                       MONGOC_ERROR_SERVER_SELECTION,
-                      code,
+                      MONGOC_ERROR_SERVER_SELECTION_FAILURE,
                       "%s: %s",
                       msg,
                       scanner_error->message);
    } else {
-      bson_set_error (error, MONGOC_ERROR_SERVER_SELECTION, code, "%s", msg);
+      bson_set_error (error,
+                      MONGOC_ERROR_SERVER_SELECTION,
+                      MONGOC_ERROR_SERVER_SELECTION_FAILURE,
+                      "%s",
+                      msg);
    }
 }
 
@@ -975,9 +964,6 @@ mongoc_topology_select_server_id (mongoc_topology_t *topology,
    int64_t next_update; /* the latest we must do a blocking scan */
    int64_t expire_at;   /* when server selection timeout expires */
 
-   /* min (serverSelectionTimeoutMS, remaining timeoutMS) */
-   int64_t computed_server_selection_timeout;
-
    BSON_ASSERT (topology);
    ts = topology->scanner;
 
@@ -999,10 +985,8 @@ mongoc_topology_select_server_id (mongoc_topology_t *topology,
    local_threshold_ms = topology->local_threshold_msec;
    try_once = topology->server_selection_try_once;
    loop_start = loop_end = bson_get_monotonic_time ();
-   computed_server_selection_timeout =
-      mongoc_timeout_compute_and_update_if_set (
-         topology->timeout, topology->server_selection_timeout_msec);
-   expire_at = loop_start + computed_server_selection_timeout * 1000;
+   expire_at =
+      loop_start + ((int64_t) topology->server_selection_timeout_msec * 1000);
 
    if (topology->single_threaded) {
       _mongoc_topology_description_monitor_opening (&topology->description);
@@ -1024,7 +1008,6 @@ mongoc_topology_select_server_id (mongoc_topology_t *topology,
             if (scan_ready > expire_at && !try_once) {
                /* selection timeout will expire before min heartbeat passes */
                _mongoc_server_selection_error (
-                  topology->timeout,
                   "No suitable servers found: "
                   "`serverselectiontimeoutms` timed out",
                   &scanner_error,
@@ -1038,7 +1021,6 @@ mongoc_topology_select_server_id (mongoc_topology_t *topology,
                if (try_once &&
                    mongoc_topology_scanner_in_cooldown (ts, scan_ready)) {
                   _mongoc_server_selection_error (
-                     topology->timeout,
                      "No servers yet eligible for rescan",
                      &scanner_error,
                      error);
@@ -1072,7 +1054,6 @@ mongoc_topology_select_server_id (mongoc_topology_t *topology,
          if (try_once) {
             if (tried_once) {
                _mongoc_server_selection_error (
-                  topology->timeout,
                   "No suitable servers found (`serverSelectionTryOnce` set)",
                   &scanner_error,
                   error);
@@ -1085,7 +1066,7 @@ mongoc_topology_select_server_id (mongoc_topology_t *topology,
             if (loop_end > expire_at) {
                /* no time left in server_selection_timeout_msec */
                _mongoc_server_selection_error (
-                  topology->timeout, timeout_msg, &scanner_error, error);
+                  timeout_msg, &scanner_error, error);
 
                return 0;
             }
@@ -1129,8 +1110,7 @@ mongoc_topology_select_server_id (mongoc_topology_t *topology,
          if (r == ETIMEDOUT) {
 #endif
             /* handle timeouts */
-            _mongoc_server_selection_error (
-               topology->timeout, timeout_msg, &scanner_error, error);
+            _mongoc_server_selection_error (timeout_msg, &scanner_error, error);
 
             return 0;
          } else if (r) {
@@ -1146,8 +1126,7 @@ mongoc_topology_select_server_id (mongoc_topology_t *topology,
          loop_start = bson_get_monotonic_time ();
 
          if (loop_start > expire_at) {
-            _mongoc_server_selection_error (
-               topology->timeout, timeout_msg, &scanner_error, error);
+            _mongoc_server_selection_error (timeout_msg, &scanner_error, error);
 
             return 0;
          }
@@ -1740,9 +1719,9 @@ _mongoc_topology_handle_app_error (mongoc_topology_t *topology,
       }
 
       /* Check if the error is "stale", i.e. the topologyVersion refers to an
-       * older
-       * version of the server than we have stored in the topology description.
-       */
+      * older
+      * version of the server than we have stored in the topology description.
+      */
       _find_topology_version (reply, &incoming_topology_version);
       if (mongoc_server_description_topology_version_cmp (
              &sd->topology_version, &incoming_topology_version) >= 0) {
